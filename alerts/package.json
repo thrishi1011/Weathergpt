@@ -1,0 +1,10 @@
+{
+  "name": "weathergpt-alerts",
+  "version": "1.0.0",
+  "description": "WeatherGPT Alert Engine — processes official IMD warnings, evaluates alerts, and manages notifications",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/runTests.js",
+    "demo": "node test/runTests.js"
+  }
+}
