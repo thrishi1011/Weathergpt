@@ -1,0 +1,16 @@
+{
+  "location": "",
+  "timestamp": "",
+  "temperature": null,
+  "humidity": null,
+  "rain_probability": null,
+  "rainfall": null,
+  "wind_speed": null,
+  "weather_condition": "",
+  "imd_alert": {
+    "active": false,
+    "severity": "",
+    "event": "",
+    "message": ""
+  }
+}
