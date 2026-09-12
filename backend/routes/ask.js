@@ -14,7 +14,7 @@ const { generateAnswer } = require('../services/llmService');
  */
 router.post('/', async (req, res) => {
   try {
-    const { question, location: locationName, language } = req.body;
+    const { question, location: locationName, coordinates, language } = req.body;
 
     // Validate required fields
     if (!question || typeof question !== 'string' || question.trim() === '') {
@@ -29,8 +29,17 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Resolve location
-    const location = await resolveLocation(locationName);
+    let location = null;
+    if (coordinates && coordinates.latitude != null && coordinates.longitude != null) {
+      location = {
+        name: locationName.trim(),
+        latitude: parseFloat(coordinates.latitude),
+        longitude: parseFloat(coordinates.longitude)
+      };
+    } else {
+      // Resolve location name
+      location = await resolveLocation(locationName.trim());
+    }
 
     if (!location) {
       return res.status(404).json({

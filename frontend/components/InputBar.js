@@ -95,20 +95,44 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   const voiceBar = container.querySelector('#voice-status-bar');
   const langGroup = container.querySelector('#language-selector-group');
 
-  // Auto-resize textarea
+  function detectScriptLanguage(str) {
+    if (/[\u0C00-\u0C7F]/.test(str)) return 'te';
+    if (/[\u0900-\u097F]/.test(str)) return 'hi';
+    if (/[\u0B80-\u0BFF]/.test(str)) return 'ta';
+    if (/[\u0C80-\u0CFF]/.test(str)) return 'kn';
+    if (/[\u0980-\u09FF]/.test(str)) return 'bn';
+    if (/[\u0D00-\u0D7F]/.test(str)) return 'ml';
+    return null;
+  }
+
+  function setActiveLanguage(lang) {
+    selectedLanguage = lang;
+    langGroup.querySelectorAll('.lang-pill-btn').forEach(b => {
+      if (b.dataset.lang === lang) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    if (onLanguageChange) onLanguageChange(selectedLanguage);
+  }
+
+  // Auto-resize textarea & detect language script
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+
+    const detected = detectScriptLanguage(textarea.value);
+    if (detected && detected !== selectedLanguage) {
+      setActiveLanguage(detected);
+    }
   });
 
   // Language switch
   langGroup.addEventListener('click', (e) => {
     const btn = e.target.closest('.lang-pill-btn');
     if (btn) {
-      langGroup.querySelectorAll('.lang-pill-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedLanguage = btn.dataset.lang;
-      if (onLanguageChange) onLanguageChange(selectedLanguage);
+      setActiveLanguage(btn.dataset.lang);
     }
   });
 
@@ -134,11 +158,18 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
       speechService.stopListening();
     }
 
+    // Auto-detect language from question text if currently English
+    const detected = detectScriptLanguage(text);
+    const finalLang = detected || selectedLanguage || 'en';
+    if (detected && detected !== selectedLanguage) {
+      setActiveLanguage(detected);
+    }
+
     textarea.value = '';
     textarea.style.height = 'auto';
 
     if (onSend) {
-      onSend({ question: text, language: selectedLanguage });
+      onSend({ question: text, language: finalLang });
     }
   }
 

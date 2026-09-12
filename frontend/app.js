@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentScreen: 'splash', // 'splash' | 'mode-selection' | 'workspace'
     activeMode: 'chat',      // 'travel' | 'farm' | 'outdoor' | 'chat'
     location: 'Warangal',
+    coordinates: null,       // { latitude, longitude }
+    locationSource: 'preset',
     language: 'en',
     isProcessing: false,
     weatherData: null
@@ -149,8 +151,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const locationBar = createLocationBar({
       initialLocation: state.location,
-      onLocationChange: async (newLocation) => {
-        state.location = newLocation;
+      initialCoords: state.coordinates,
+      onLocationChange: async (locData) => {
+        if (typeof locData === 'string') {
+          state.location = locData;
+          state.coordinates = null;
+          state.locationSource = 'manual';
+        } else {
+          state.location = locData.name;
+          state.coordinates = locData.coordinates || null;
+          state.locationSource = locData.source || 'manual';
+        }
         await reloadWeatherData();
       }
     });
@@ -196,6 +207,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeWorkspaceEl = mainLayout;
     appRoot.appendChild(activeWorkspaceEl);
 
+    // Auto-detect GPS if permission already granted or prompt gently
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted') {
+          locationBar.detectGps();
+        }
+      }).catch(() => {});
+    }
+
     // Initial weather data load
     if (state.weatherData) {
       weatherWidget.update(state.weatherData);
@@ -220,14 +240,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const result = await askQuestion({
           question: questionText,
           location: state.location,
+          coordinates: state.coordinates,
           language: state.language
         });
 
-        // 4. Hide loading & present answer with humanoid options
+        // 4. Hide loading & present localized answer with real telemetry
         chatView.hideLoadingState();
         chatView.addAssistantMessage(result.answer, result.language, result.isDemo, {
           question: questionText,
-          location: state.location
+          location: state.location,
+          weatherData: state.weatherData
         });
 
         if (result.isDemo && !sessionStorage.getItem('demo_notified')) {
@@ -250,7 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function reloadWeatherData() {
       try {
-        const data = await fetchWeather(state.location);
+        const data = await fetchWeather(state.location, state.coordinates);
         state.weatherData = data;
         weatherWidget.update(data);
       } catch (err) {

@@ -119,93 +119,41 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     const row = document.createElement('div');
     row.className = 'message-row assistant-row';
 
-    // Parse humanoid components if question relates to "rain" or "weather"
-    const isRainQuestion = (answerText || '').toLowerCase().includes('rain') || 
-                           (options.question || '').toLowerCase().includes('rain') ||
-                           (options.question || '').toLowerCase().includes('today') ||
-                           (options.question || '').toLowerCase().includes('tomorrow');
+    // Real answer text from LLM pipeline
+    const speechPlainText = answerText;
 
-    let humanoidCardHtml = '';
-    let speechPlainText = answerText;
+    // Optional telemetry snippet if real weatherData was passed in options
+    const weatherData = options.weatherData;
+    let telemetrySnippetHtml = '';
 
-    if (isRainQuestion) {
-      const willRain = !answerText.toLowerCase().includes('no rain');
-      const probability = willRain ? 78 : 12;
+    if (weatherData && weatherData.temperature != null) {
+      const rainProb = weatherData.rain_probability != null ? `${weatherData.rain_probability}%` : '--';
+      const cond = weatherData.weather_condition || 'Moderate';
+      const temp = `${weatherData.temperature.toFixed(1)}°C`;
+      const loc = weatherData.location || options.location || '';
 
-      // Chart for humanoid answer
-      const chartHtml = ChartEngine.renderHourlyRainChart({
-        hours: ['12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'],
-        probabilities: willRain ? [25, 45, 82, 75, 40, 15] : [10, 12, 15, 10, 5, 5],
-        temps: [31, 30, 27, 26, 26, 25]
-      });
-
-      speechPlainText = willRain 
-        ? `Yes, it will definitely rain. There is a 78 percent chance of thunderstorm showers, most active between 3:30 PM and 6:00 PM. Hang your laundry early, and avoid highway driving during the afternoon squall.`
-        : `No rain is expected today. Skies are clear with pleasant weather.`;
-
-      humanoidCardHtml = `
-        <div class="humanoid-verdict-card ${willRain ? 'verdict-rain-yes' : 'verdict-rain-no'}">
-          <!-- Direct Verdict Headline -->
-          <div class="verdict-header-row">
-            <span class="verdict-emoji">${willRain ? '🌧️' : '☀️'}</span>
-            <div class="verdict-text-group">
-              <h3 class="verdict-title">${willRain ? 'Yes, it will definitely rain today.' : 'No rain is expected today.'}</h3>
-              <span class="verdict-likelihood-tag">
-                Likelihood: <strong>${probability}%</strong> • Expected Window: <strong>3:30 PM – 6:00 PM</strong>
-              </span>
-            </div>
-          </div>
-
-          <!-- Answer Summary -->
-          <p class="humanoid-main-text">${escapeHtml(answerText)}</p>
-
-          <!-- Actionable Dos and Don'ts Checklist -->
-          <div class="humanoid-actions-grid">
-            <div class="action-column col-can-do">
-              <div class="action-col-header">
-                <span>✅ What you CAN do:</span>
-              </div>
-              <ul class="action-items-list">
-                <li>Finish morning outdoor chores and travel before 2:00 PM.</li>
-                <li>Keep field drainage channels open to absorb natural rain.</li>
-                <li>Carry a light umbrella if returning home in the evening.</li>
-              </ul>
-            </div>
-
-            <div class="action-column col-avoid">
-              <div class="action-col-header">
-                <span>❌ What to AVOID:</span>
-              </div>
-              <ul class="action-items-list">
-                <li>Avoid hanging laundry outside after 1:00 PM.</li>
-                <li>Do NOT spray pesticides or fertilizers (will wash away).</li>
-                <li>Avoid two-wheeler highway travel during 3:30 PM – 6:00 PM squalls.</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Embedded High-Precision SVG Chart -->
-          <div class="humanoid-chart-container">
-            <div class="chart-caption-bar">
-              <span>📊 Rain Probability & Temperature Curve</span>
-            </div>
-            ${chartHtml}
-          </div>
-        </div>
-      `;
-    } else {
-      humanoidCardHtml = `
-        <div class="standard-answer-body">
-          <p>${escapeHtml(answerText).replace(/\n/g, '<br/>')}</p>
+      telemetrySnippetHtml = `
+        <div class="assistant-telemetry-badge">
+          <span class="telemetry-pill">📍 ${escapeHtml(loc)}</span>
+          <span class="telemetry-pill">🌡️ ${temp}</span>
+          <span class="telemetry-pill">🌧️ ${rainProb} Rain</span>
+          <span class="telemetry-pill">⛅ ${escapeHtml(cond)}</span>
         </div>
       `;
     }
+
+    const contentHtml = `
+      <div class="standard-answer-body">
+        <p class="assistant-answer-text">${escapeHtml(answerText).replace(/\n/g, '<br/>')}</p>
+        ${telemetrySnippetHtml}
+      </div>
+    `;
 
     row.innerHTML = `
       <div class="message-avatar assistant-avatar" title="WeatherGPT">⚡</div>
       <div class="message-bubble-wrapper">
         <div class="message-bubble assistant-bubble">
-          ${humanoidCardHtml}
+          ${contentHtml}
         </div>
         <div class="message-meta-row">
           <span>${timeString}</span>

@@ -11,22 +11,29 @@ const { getWeather } = require('../services/weatherService');
 router.get('/', async (req, res) => {
   try {
     const locationName = req.query.location;
+    const { lat, lon } = req.query;
 
-    // Validate: location is required
-    if (!locationName || locationName.trim() === '') {
+    let location = null;
+
+    if (lat && lon && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
+      location = {
+        name: locationName && locationName.trim() ? locationName.trim() : 'Detected Location',
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lon)
+      };
+    } else if (locationName && locationName.trim() !== '') {
+      // Resolve location name to coordinates
+      location = await resolveLocation(locationName.trim());
+      if (!location) {
+        return res.status(404).json({
+          error: `Location not found: "${locationName}"`,
+          message: 'Please check the spelling or try a different location name.'
+        });
+      }
+    } else {
       return res.status(400).json({
-        error: 'Missing required parameter: location',
-        example: 'GET /api/weather?location=Warangal'
-      });
-    }
-
-    // Resolve location name to coordinates
-    const location = await resolveLocation(locationName);
-
-    if (!location) {
-      return res.status(404).json({
-        error: `Location not found: "${locationName}"`,
-        message: 'Please check the spelling or try a different location name.'
+        error: 'Missing required parameter: location or lat/lon',
+        example: 'GET /api/weather?location=Warangal or GET /api/weather?lat=17.9689&lon=79.5941'
       });
     }
 

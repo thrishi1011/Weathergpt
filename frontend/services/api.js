@@ -30,19 +30,27 @@ function updateBackendStatus(available, reason = '') {
  * @param {Object} params
  * @param {string} params.question - The user query (e.g. "Will it rain tomorrow?")
  * @param {string} params.location - The chosen location (e.g. "Warangal")
+ * @param {Object} [params.coordinates] - Optional { latitude, longitude }
  * @param {string} params.language - Language code (e.g. "en", "te", "hi")
  * @returns {Promise<{answer: string, language: string, isDemo?: boolean}>}
  */
-export async function askQuestion({ question, location = 'Warangal', language = 'en' }) {
+export async function askQuestion({ question, location = 'Warangal', coordinates = null, language = 'en' }) {
   const payload = {
     question: question.trim(),
     location: (location || 'Warangal').trim(),
     language: language || 'en'
   };
 
+  if (coordinates && coordinates.latitude != null && coordinates.longitude != null) {
+    payload.coordinates = {
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude
+    };
+  }
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const response = await fetch('/api/ask', {
       method: 'POST',
@@ -85,18 +93,24 @@ export async function askQuestion({ question, location = 'Warangal', language = 
 }
 
 /**
- * Fetch current weather data and IMD alerts for a location
+ * Fetch current weather data and IMD alerts for a location or coordinates
  * @param {string} location
+ * @param {Object} [coords] - { latitude, longitude }
  * @returns {Promise<Object>}
  */
-export async function fetchWeather(location = 'Warangal') {
+export async function fetchWeather(location = 'Warangal', coords = null) {
   const loc = (location || 'Warangal').trim();
+
+  let url = `/api/weather?location=${encodeURIComponent(loc)}`;
+  if (coords && coords.latitude != null && coords.longitude != null) {
+    url += `&lat=${coords.latitude}&lon=${coords.longitude}`;
+  }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`/api/weather?location=${encodeURIComponent(loc)}`, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
@@ -121,6 +135,52 @@ export async function fetchWeather(location = 'Warangal') {
 }
 
 /**
+ * Reverse geocode coordinates to district/city
+ */
+export async function reverseGeocodeCoords(latitude, longitude) {
+  try {
+    const res = await fetch(`/api/location/reverse?lat=${latitude}&lon=${longitude}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] Reverse geocode request failed:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Search locations worldwide
+ */
+export async function searchLocations(query) {
+  try {
+    const res = await fetch(`/api/location/search?query=${encodeURIComponent(query)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || [];
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] Location search failed:', e.message);
+  }
+  return [];
+}
+
+/**
+ * Detect location via IP fallback
+ */
+export async function detectIpLocation() {
+  try {
+    const res = await fetch('/api/location/ip');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] IP location detection failed:', e.message);
+  }
+  return null;
+}
+
+/**
  * Ping backend to check real-time availability
  */
 export async function checkBackendConnection() {
@@ -139,3 +199,4 @@ export async function checkBackendConnection() {
   updateBackendStatus(false, 'Backend offline (interactive demo mode active)');
   return false;
 }
+
