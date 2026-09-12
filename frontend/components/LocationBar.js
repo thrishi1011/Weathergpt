@@ -163,8 +163,12 @@ export function createLocationBar({ initialLocation = 'Warangal', initialCoords 
         gpsBtn.disabled = false;
         console.warn('Browser GPS failed:', err.message, 'Code:', err.code);
 
+        if (err.code === 1) {
+          setStatus('Location access denied. Search for a location manually.', true);
+          return;
+        }
+
         const reasons = {
-          1: 'Location permission denied',
           2: 'GPS position unavailable',
           3: 'GPS request timed out'
         };

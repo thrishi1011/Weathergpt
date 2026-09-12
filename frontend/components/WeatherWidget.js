@@ -72,6 +72,13 @@ export function createWeatherWidget() {
 
     <!-- IMD Alert Container -->
     <div id="imd-alert-host"></div>
+
+    <!-- Data Source Provenance -->
+    <div class="weather-data-source-footer" id="weather-source-provenance">
+      <span class="source-item">📡 Live Weather: <strong>Open-Meteo</strong></span>
+      <span class="source-sep">•</span>
+      <span class="source-item">🏛️ Warnings: <strong>IMD</strong></span>
+    </div>
   `;
 
   const locEl = container.querySelector('#weather-location-name');

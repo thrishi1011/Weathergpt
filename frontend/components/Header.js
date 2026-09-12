@@ -107,13 +107,13 @@ export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClic
     setStatus: ({ available, reason }) => {
       const textEl = header.querySelector('#backend-status-text');
       if (available) {
-        statusPill.className = 'connection-pill';
-        textEl.textContent = 'Backend: Connected';
+        statusPill.className = 'connection-pill connected';
+        textEl.textContent = 'Backend Connected';
         statusPill.title = reason || 'Live API connection active';
       } else {
-        statusPill.className = 'connection-pill offline-mode';
-        textEl.textContent = 'Backend: Demo Mode';
-        statusPill.title = reason || 'Click to retry connection to live backend';
+        statusPill.className = 'connection-pill offline';
+        textEl.textContent = 'Backend Offline';
+        statusPill.title = reason || 'Backend is currently offline';
       }
     }
   };

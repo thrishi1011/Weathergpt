@@ -186,17 +186,17 @@ export async function detectIpLocation() {
 export async function checkBackendConnection() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('/api/weather?location=Warangal', { signal: controller.signal });
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch('/health', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
-      updateBackendStatus(true, 'Live backend connected');
+      updateBackendStatus(true, 'Backend Connected');
       return true;
     }
   } catch (e) {
     // Expected when backend server is not running
   }
-  updateBackendStatus(false, 'Backend offline (interactive demo mode active)');
+  updateBackendStatus(false, 'Backend Offline');
   return false;
 }
 

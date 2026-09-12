@@ -11,11 +11,12 @@ const { getWeather } = require('../services/weatherService');
 router.get('/', async (req, res) => {
   try {
     const locationName = req.query.location;
-    const { lat, lon } = req.query;
+    const lat = req.query.lat || req.query.latitude;
+    const lon = req.query.lon || req.query.longitude;
 
     let location = null;
 
-    if (lat && lon && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
+    if (lat != null && lon != null && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
       location = {
         name: locationName && locationName.trim() ? locationName.trim() : 'Detected Location',
         latitude: parseFloat(lat),

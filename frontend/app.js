@@ -281,6 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Check Backend Connection in background
+  // Check Backend Connection immediately and continuously monitor health
   await checkBackendConnection();
+  setInterval(checkBackendConnection, 3500);
 });

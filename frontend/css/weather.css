@@ -429,6 +429,26 @@
   color: var(--accent-emerald);
 }
 
+.weather-data-source-footer {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.weather-data-source-footer strong {
+  color: var(--text-main);
+}
+
+.source-sep {
+  opacity: 0.5;
+}
+
 @media (max-width: 768px) {
   .sidebar-panel {
     border-right: none;

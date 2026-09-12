@@ -22,6 +22,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'WeatherGPT Backend' });
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', service: 'WeatherGPT Backend' });
+});
+
 // API routes
 app.use('/api/weather', weatherRoutes);
 app.use('/api/ask', askRoutes);

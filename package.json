@@ -1,0 +1,23 @@
+{
+  "name": "weathergpt",
+  "version": "1.0.0",
+  "description": "WeatherGPT — AI-Powered Weather & Agro-Meteorological Intelligence",
+  "private": true,
+  "scripts": {
+    "dev": "node start.js",
+    "start": "node start.js",
+    "test": "node backend/test_e2e.js",
+    "test:all": "node backend/test_e2e.js && node location/test/test-v2.js && node alerts/test/runTests.js",
+    "build": "npm --prefix frontend run build"
+  },
+  "keywords": [
+    "weather",
+    "gemini",
+    "ai",
+    "sih",
+    "multilingual",
+    "meteorology"
+  ],
+  "author": "WeatherGPT Team",
+  "license": "ISC"
+}
