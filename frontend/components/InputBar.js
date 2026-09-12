@@ -203,6 +203,31 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
           setActiveLanguage(detected);
         }
       },
+      onPauseComplete: (finalTranscript) => {
+        textarea.value = finalTranscript;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        textarea.focus();
+        try {
+          textarea.setSelectionRange(finalTranscript.length, finalTranscript.length);
+        } catch (_) {}
+
+        // Visual indicator: Voice input auto-typed after 3-4s pause and is ready to send
+        voiceBar.classList.add('ready');
+        voiceBar.innerHTML = `<span>✅ Voice captured! Ready to send — Press <strong>Enter</strong> or click <strong>➤</strong></span>`;
+        setTimeout(() => {
+          voiceBar.classList.remove('ready', 'active');
+          voiceBar.innerHTML = `
+            <span>🎙️ Listening... Speak your weather question</span>
+            <div class="voice-wave-indicator">
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+          `;
+        }, 4000);
+      },
       onListeningChange: (listening) => {
         isListening = listening;
         if (listening) {

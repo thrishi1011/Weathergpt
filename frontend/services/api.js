@@ -50,7 +50,7 @@ export async function askQuestion({ question, location = 'Warangal', coordinates
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const response = await fetch('/api/ask', {
       method: 'POST',

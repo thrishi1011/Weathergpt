@@ -121,45 +121,63 @@ export function getMockAnswer(question, location = 'Warangal', language = 'en') 
   const q = (question || '').toLowerCase();
   const loc = location || 'Warangal';
 
-  // Multilingual responses
+  // 1. Fisherman / Marine queries
+  const isFisherman = q.includes('fish') || q.includes('boat') || q.includes('sea') || q.includes('marine') ||
+                      q.includes('చేప') || q.includes('మత్స్య') || q.includes('मछुआरे') || q.includes('मछली');
+  if (isFisherman) {
+    if (language === 'te') {
+      return `${loc} తీరంలో వాతావరణం అల్లకల్లోలంగా ఉండే అవకాశం ఉంది. గాలి వేగం మరియు అలల ఉధృతి ఎక్కువగా ఉండడం వల్ల సముద్రంలోకి వేటకు వెళ్లడం సురక్షితం కాదు. వాతావరణం అనుకూలించే వరకు వేటను వాయిదా వేయండి.`;
+    }
+    if (language === 'hi') {
+      return `${loc} में तेज हवाओं और खराब मौसम के कारण समुद्र में जाना सुरक्षित नहीं है। मछुआरों को सलाह दी जाती है कि वे मौसम सामान्य होने तक समुद्र में न जाएं।`;
+    }
+    return `For fishermen in ${loc}, sea conditions are currently choppy with strong gusts. Venturing out to deep waters is not recommended today due to sudden squalls and high waves. Please keep boats safely docked until conditions stabilize.`;
+  }
+
+  // 2. Construction / Outdoor Painting / Masonry
+  const isConstruction = q.includes('construct') || q.includes('paint') || q.includes('cement') || q.includes('roof') ||
+                         q.includes('భవన') || q.includes('నిర్మాణం') || q.includes('रंगाई') || q.includes('निर्माण');
+  if (isConstruction) {
+    if (language === 'te') {
+      return `${loc} లో ఈరోజు వర్షం పడే అవకాశం ఉన్నందున అవుట్‌డోర్ పెయింటింగ్ లేదా కాంక్రీట్ పనులకు ఆటంకం కలగవచ్చు. ఇండోర్ పనులు పూర్తి చేసుకోవడం మంచిది.`;
+    }
+    if (language === 'hi') {
+      return `${loc} में बारिश की संभावना के कारण बाहरी निर्माण या पेंटिंग कार्य में रुकावट आ सकती है। इन कार्यों को शुष्क मौसम तक टालना बेहतर रहेगा।`;
+    }
+    return `Outdoor construction, painting, and roofing in ${loc} face rain disruption risks today. High humidity and showers may delay paint drying and wash uncured cement. Focus on indoor or sheltered tasks today.`;
+  }
+
+  // 3. Farming / Pesticide queries (ONLY when explicitly asked)
+  const isFarming = q.includes('plant') || q.includes('sow') || q.includes('seed') || q.includes('spray') ||
+                    q.includes('pesticide') || q.includes('fertilizer') || q.includes('crop') || q.includes('farm') ||
+                    q.includes('విత్తనాలు') || q.includes('పురుగుమందులు') || q.includes('పంట') || q.includes('खेती') || q.includes('कीटनाशक');
+  if (isFarming) {
+    if (language === 'te') {
+      return `${loc} లో వర్షం పడే అవకాశం ఎక్కువగా ఉన్నందున పురుగుమందుల పిచికారీ మరియు విత్తనాలు నాటే పనులను తాత్కాలికంగా వాయిదా వేయడం మంచిది. లేదంటే మందు వర్షపు నీటిలో కొట్టుకుపోతుంది.`;
+    }
+    if (language === 'hi') {
+      return `${loc} में बारिश की संभावना के कारण आज कीटनाशक छिड़काव या बुवाई स्थगित करना उचित होगा, अन्यथा दवा धुल जाएगी।`;
+    }
+    return `Do NOT spray pesticides or fertilizers today in ${loc}. Impending rain will wash away chemical applications into runoff. Plan agricultural chemical spraying when at least 24 hours of dry weather are guaranteed.`;
+  }
+
+  // 4. General Rain & Commute
+  if (q.includes('rain') || q.includes('వర్షం') || q.includes('बारिश')) {
+    if (language === 'te') {
+      return `అవును, ఈరోజు ${loc} లో వర్షం పడే అవకాశం ఉంది. ఉష్ణోగ్రత 28°C గా ఉండి, తేలికపాటి నుండి మోస్తరు జల్లులు కురవవచ్చు. బయటకు వెళ్ళేటప్పుడు గొడుగు వెంట తీసుకెళ్లండి.`;
+    }
+    if (language === 'hi') {
+      return `हाँ, आज ${loc} में बारिश होने की संभावना है। तापमान लगभग 28°C रहेगा और हल्की से मध्यम फुहारें पड़ सकती हैं। बाहर जाते समय छाता अवश्य साथ रखें।`;
+    }
+    return `Yes, rain showers are expected today in ${loc}. Temperatures will stay near 28°C with gusty conditions. Be sure to carry an umbrella or raincoat if you are heading outdoors.`;
+  }
+
+  // 5. Temperature / General Weather
   if (language === 'te') {
-    if (q.includes('rain') || q.includes('వర్షం') || q.includes('రేపు')) {
-      return `రేపు ${loc} లో భారీ వర్షం పడే అవకాశం ఉంది (దాదాపు 75% సంభావ్యత). విత్తనాలు నాటడం లేదా పురుగుమందులు పిచికారీ చేయడం రెండు రోజులు వాయిదా వేయడం మంచిది.`;
-    }
-    return `${loc} వాతావరణ నివేదిక ప్రకారం ప్రస్తుతం ఉష్ణోగ్రత 28°C గా ఉంది, ఆకాశం మేఘావృతమై ఉంది. వ్యవసాయ పనులలో తగిన జాగ్రత్తలు పాటించండి.`;
+    return `${loc} లో ప్రస్తుత ఉష్ణోగ్రత 28°C గా ఉంది, ఆకాశం మేఘావృతమై ఉంది. గాలి వేగం సాధారణంగా ఉంది.`;
   }
-
   if (language === 'hi') {
-    if (q.includes('rain') || q.includes('बारिश') || q.includes('कल')) {
-      return `कल ${loc} में गरज के साथ बारिश होने की 75% संभावना है। यदि आप बुवाई या कीटनाशक छिड़काव की योजना बना रहे हैं, तो इसे स्थगित करने की सलाह दी जाती है।`;
-    }
-    return `${loc} के लिए मौसम पूर्वानुमान: तापमान लगभग 28°C है और बादल छाए रहने की संभावना है।`;
+    return `${loc} में वर्तमान तापमान लगभग 28°C है और आकाश में बादल छाए हुए हैं। सामान्य मौसम बना रहेगा।`;
   }
-
-  // English default - Direct Humanoid Responses
-  if (q.includes('today') && q.includes('rain')) {
-    return `Yes, it will definitely rain today in ${loc}. Expect moderate to heavy thunderstorm showers between 3:30 PM and 6:00 PM (78% likelihood). It is safe to complete your morning commute and chores, but ensure you carry an umbrella for the evening and bring outdoor laundry inside before 1:00 PM.`;
-  }
-
-  if (q.includes('tomorrow') && q.includes('rain')) {
-    return `Yes, rain is expected tomorrow in ${loc} with a 75% probability and thunderstorm activity peaking in the late afternoon. If you are planning field sowing, harvesting, or pesticide application, it is best to postpone those activities until skies settle.`;
-  }
-
-  if (q.includes('rain')) {
-    return `Yes, rain showers and convective thunderstorms are likely in ${loc} today (around 78% probability). Most shower activity will develop between 3:30 PM and 6:00 PM with gusty winds.`;
-  }
-
-  if (q.includes('plant') || q.includes('sow') || q.includes('seed')) {
-    return `Hold off on planting for the next 48 hours in ${loc}. With 18-22mm of precipitation forecasted, heavy rain may cause seed dislodgement and soil crusting in freshly sown furrows. Plan your sowing immediately once the thunderstorm spell clears.`;
-  }
-
-  if (q.includes('spray') || q.includes('pesticide') || q.includes('fertilizer')) {
-    return `Do NOT spray pesticides or foliar fertilizers today in ${loc}. Upcoming afternoon rainfall will wash away chemical applications, wasting inputs and causing environmental runoff. Spray only when at least 24 hours of dry weather are guaranteed.`;
-  }
-
-  if (q.includes('temp') || q.includes('hot') || q.includes('cold') || q.includes('degree')) {
-    return `Current temperature in ${loc} is 28.4°C with high relative humidity at 82%. Winds are steady from the southwest at 14.2 km/h. Maximum daytime high is expected to reach 31.0°C around 1:30 PM before showers bring temperatures down to 26.0°C.`;
-  }
-
-  return `Current meteorological summary for ${loc}: Sky is overcast with convective clouds forming. Rain probability stands at 75% with IMD thunderstorm alerts in effect. Complete outdoor tasks early and keep drainage paths unobstructed.`;
+  return `Current meteorological summary for ${loc}: Sky is partly cloudy to overcast with temperatures around 28°C and steady breezes. Standard outdoor activities can proceed with awareness of shifting skies.`;
 }

@@ -39,17 +39,17 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
             <span class="suggestion-pill-icon">🌧️</span>
             <span class="suggestion-pill-text">"Will it rain today?"</span>
           </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Will it rain tomorrow?">
-            <span class="suggestion-pill-icon">🌦️</span>
-            <span class="suggestion-pill-text">"Will it rain tomorrow?"</span>
+          <button type="button" class="suggestion-pill-card" data-prompt="I am a fisherman, is it safe to go out to sea today?">
+            <span class="suggestion-pill-icon">🎣</span>
+            <span class="suggestion-pill-text">"Is it safe for fishing / sea?"</span>
           </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Should I spray pesticide today?">
+          <button type="button" class="suggestion-pill-card" data-prompt="Can we do outdoor construction or painting work today?">
+            <span class="suggestion-pill-icon">🏗️</span>
+            <span class="suggestion-pill-text">"Outdoor construction / work?"</span>
+          </button>
+          <button type="button" class="suggestion-pill-card" data-prompt="Should I spray pesticide on my crops today?">
             <span class="suggestion-pill-icon">🌾</span>
-            <span class="suggestion-pill-text">"Should I spray pesticide today?"</span>
-          </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Show me the 24-hour temperature and rain graph.">
-            <span class="suggestion-pill-icon">📊</span>
-            <span class="suggestion-pill-text">"Show 24-hour rain graph"</span>
+            <span class="suggestion-pill-text">"Should I spray pesticide?"</span>
           </button>
         </div>
       </div>

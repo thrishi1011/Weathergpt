@@ -86,6 +86,24 @@ class SpeechService {
       this.recognition.lang = LANG_MAP[language] || 'en-IN';
 
       let accumulatedFinal = '';
+      const SILENCE_DELAY_MS = 3500; // 3.5 seconds silence detection
+
+      const resetSilenceTimer = (currentText) => {
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+          this.silenceTimeout = null;
+        }
+        if (!currentText || !currentText.trim()) return;
+
+        this.silenceTimeout = setTimeout(() => {
+          console.log('[Speech] 3.5s pause detected. Auto-stopping listening and finalizing text.');
+          const finalTrimmed = currentText.trim();
+          this.stopListening();
+          if (onPauseComplete) {
+            onPauseComplete(finalTrimmed);
+          }
+        }, SILENCE_DELAY_MS);
+      };
 
       this.recognition.onstart = () => {
         this.isListening = true;
@@ -107,11 +125,16 @@ class SpeechService {
         const fullText = (accumulatedFinal + interim).trim();
         if (fullText && this.onTranscript) {
           this.onTranscript(fullText);
+          resetSilenceTimer(fullText);
         }
       };
 
       this.recognition.onerror = (event) => {
         console.warn('[Speech] Recognition event error:', event.error);
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+          this.silenceTimeout = null;
+        }
         
         // Suppress non-critical benign events
         if (event.error === 'no-speech' || event.error === 'aborted') {
@@ -134,6 +157,10 @@ class SpeechService {
       };
 
       this.recognition.onend = () => {
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+          this.silenceTimeout = null;
+        }
         this.isListening = false;
         if (this.onListeningChange) this.onListeningChange(false);
       };
@@ -150,6 +177,10 @@ class SpeechService {
   }
 
   stopListening() {
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
     if (this.recognition && this.isListening) {
       try {
         this.recognition.stop();

@@ -221,6 +221,13 @@
   display: flex;
 }
 
+.voice-status-bar.ready {
+  display: flex;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
 .voice-wave-indicator {
   display: flex;
   align-items: center;
