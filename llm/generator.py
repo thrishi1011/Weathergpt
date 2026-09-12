@@ -71,14 +71,19 @@ class MockProvider(LLMProvider):
 
 class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider via REST API with multi-model failover for high reliability."""
-    def __init__(self, api_key: str, model_name: str = "gemini-3.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest"):
         self.api_key = api_key
-        self.model_name = model_name
-        # Fallback pool in case of temporary rate limit (429) or high demand (503)
-        self.model_pool = [model_name]
-        for m in ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash"]:
-            if m not in self.model_pool:
-                self.model_pool.append(m)
+        # Prioritize active, available Gemini models
+        active_models = [
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-3-flash-preview",
+            "gemini-pro-latest"
+        ]
+        if model_name and model_name not in active_models:
+            active_models.append(model_name)
+        self.model_name = active_models[0]
+        self.model_pool = active_models
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         headers = {"Content-Type": "application/json"}
@@ -155,7 +160,7 @@ def get_provider() -> LLMProvider:
     model_name = os.environ.get("LLM_MODEL")
 
     if gemini_key:
-        active_model = model_name or "gemini-3.6-flash"
+        active_model = model_name or "gemini-flash-latest"
         logger.info(f"Initialized GeminiProvider with model '{active_model}'")
         return GeminiProvider(api_key=gemini_key, model_name=active_model)
     elif openai_key:

@@ -95,6 +95,14 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   const voiceBar = container.querySelector('#voice-status-bar');
   const langGroup = container.querySelector('#language-selector-group');
 
+  const PLACEHOLDERS = {
+    'en': "Ask anything about the weather in English (e.g., 'Will it rain today?')",
+    'te': "వాతావరణం గురించి తెలుగులో అడగండి (ఉదా: 'ఈరోజు వర్షం పడుతుందా?')",
+    'hi': "मौसम के बारे में हिन्दी में पूछें (उदा: 'आज बारिश होगी क्या?')",
+    'ta': "வானிலை பற்றி தமிழில் கேளுங்கள் (எ.கா: 'இன்று மழை பெய்யுமா?')",
+    'kn': "ಹವಾಮಾನದ ಬಗ್ಗೆ ಕನ್ನಡದಲ್ಲಿ ಕೇಳಿ (ಉದಾ: 'ಇಂದು ಮಳೆ ಬರುತ್ತದೆಯೇ?')"
+  };
+
   function detectScriptLanguage(str) {
     if (/[\u0C00-\u0C7F]/.test(str)) return 'te';
     if (/[\u0900-\u097F]/.test(str)) return 'hi';
@@ -114,6 +122,7 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
         b.classList.remove('active');
       }
     });
+    textarea.placeholder = PLACEHOLDERS[lang] || PLACEHOLDERS['en'];
     if (onLanguageChange) onLanguageChange(selectedLanguage);
   }
 
@@ -158,7 +167,7 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
       speechService.stopListening();
     }
 
-    // Auto-detect language from question text if currently English
+    // Auto-detect language from question text if native script is typed, else use active pill
     const detected = detectScriptLanguage(text);
     const finalLang = detected || selectedLanguage || 'en';
     if (detected && detected !== selectedLanguage) {
@@ -174,18 +183,25 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   }
 
   // Voice Input (Speech-to-Text)
-  micBtn.addEventListener('click', () => {
+  micBtn.addEventListener('click', async () => {
     if (isListening) {
       speechService.stopListening();
       return;
     }
 
-    const started = speechService.startListening({
+    micBtn.classList.add('listening');
+    voiceBar.classList.add('active');
+
+    const started = await speechService.startListening({
       language: selectedLanguage,
       onTranscript: (transcript) => {
         textarea.value = transcript;
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        const detected = detectScriptLanguage(transcript);
+        if (detected && detected !== selectedLanguage) {
+          setActiveLanguage(detected);
+        }
       },
       onListeningChange: (listening) => {
         isListening = listening;
@@ -198,12 +214,17 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
         }
       },
       onError: (errMsg) => {
+        isListening = false;
+        micBtn.classList.remove('listening');
+        voiceBar.classList.remove('active');
         if (onError) onError(errMsg);
       }
     });
 
-    if (!started && !speechService.isSttSupported()) {
-      if (onError) onError('Speech Recognition is not available in your browser.');
+    if (!started) {
+      isListening = false;
+      micBtn.classList.remove('listening');
+      voiceBar.classList.remove('active');
     }
   });
 

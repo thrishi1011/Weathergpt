@@ -5,6 +5,7 @@ const cors = require('cors');
 const weatherRoutes = require('./routes/weather');
 const askRoutes = require('./routes/ask');
 const locationRoutes = require('./routes/location');
+const ttsRoutes = require('./routes/tts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/weather', weatherRoutes);
 app.use('/api/ask', askRoutes);
 app.use('/api/location', locationRoutes);
+app.use('/api/tts', ttsRoutes);
 
 // Global error handler — catches unhandled errors so the server never crashes silently
 app.use((err, req, res, next) => {
