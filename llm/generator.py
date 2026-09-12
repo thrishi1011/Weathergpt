@@ -71,17 +71,16 @@ class MockProvider(LLMProvider):
 
 class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider via REST API with multi-model failover for high reliability."""
-    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.6-flash"):
         self.api_key = api_key
-        # Prioritize active, available Gemini models
+        # Current active Gemini models (ordered by preference)
         active_models = [
+            "gemini-3.6-flash",
+            "gemini-3.5-flash-lite",
             "gemini-flash-latest",
-            "gemini-flash-lite-latest",
-            "gemini-3-flash-preview",
-            "gemini-pro-latest"
         ]
         if model_name and model_name not in active_models:
-            active_models.append(model_name)
+            active_models.insert(0, model_name)
         self.model_name = active_models[0]
         self.model_pool = active_models
 
