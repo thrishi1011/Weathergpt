@@ -6,7 +6,7 @@
 
 // BCP 47 language mapping for Indian & global contexts
 const LANG_MAP = {
-  'en': 'en-IN',
+  'en': (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en-US',
   'te': 'te-IN',
   'hi': 'hi-IN',
   'ta': 'ta-IN',
@@ -25,7 +25,9 @@ class SpeechService {
     this.currentUtterance = null;
     this.onListeningChange = null;
     this.onTranscript = null;
+    this.onPauseComplete = null;
     this.onError = null;
+    this.silenceTimeout = null;
   }
 
   isSttSupported() {
@@ -39,7 +41,7 @@ class SpeechService {
   /**
    * Start listening to microphone with userMedia permission check & continuous capture
    */
-  async startListening({ language = 'en', onTranscript, onListeningChange, onError }) {
+  async startListening({ language = 'en', onTranscript, onListeningChange, onPauseComplete, onError, isRetry = false }) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       if (onError) onError('Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.');
@@ -71,6 +73,7 @@ class SpeechService {
 
     this.onTranscript = onTranscript;
     this.onListeningChange = onListeningChange;
+    this.onPauseComplete = onPauseComplete;
     this.onError = onError;
 
     // 2. Create a fresh recognition instance on every start to prevent stale engine states
@@ -80,10 +83,11 @@ class SpeechService {
       }
 
       this.recognition = new SpeechRecognition();
-      this.recognition.continuous = true;      // Keep listening while the user is speaking
+      // On retry or restrictive networks, use standard non-continuous mode for highest compatibility
+      this.recognition.continuous = !isRetry;
       this.recognition.interimResults = true;  // Stream live transcript to input box
       this.recognition.maxAlternatives = 1;
-      this.recognition.lang = LANG_MAP[language] || 'en-IN';
+      this.recognition.lang = LANG_MAP[language] || (navigator.language || 'en-US');
 
       let accumulatedFinal = '';
       const SILENCE_DELAY_MS = 3500; // 3.5 seconds silence detection
@@ -99,8 +103,8 @@ class SpeechService {
           console.log('[Speech] 3.5s pause detected. Auto-stopping listening and finalizing text.');
           const finalTrimmed = currentText.trim();
           this.stopListening();
-          if (onPauseComplete) {
-            onPauseComplete(finalTrimmed);
+          if (this.onPauseComplete) {
+            this.onPauseComplete(finalTrimmed);
           }
         }, SILENCE_DELAY_MS);
       };
@@ -135,9 +139,38 @@ class SpeechService {
           clearTimeout(this.silenceTimeout);
           this.silenceTimeout = null;
         }
-        
+
+        // If words were already spoken and captured, finalize gracefully without error toast
+        if (accumulatedFinal.trim()) {
+          this.isListening = false;
+          if (this.onListeningChange) this.onListeningChange(false);
+          if (this.onPauseComplete) {
+            this.onPauseComplete(accumulatedFinal.trim());
+          }
+          return;
+        }
+
         // Suppress non-critical benign events
         if (event.error === 'no-speech' || event.error === 'aborted') {
+          this.isListening = false;
+          if (this.onListeningChange) this.onListeningChange(false);
+          return;
+        }
+
+        // If streaming network socket failed, retry once with standard non-continuous mode
+        if (event.error === 'network' && !isRetry) {
+          console.log('[Speech] Streaming STT network glitch. Auto-recovering with standard mode...');
+          this.isListening = false;
+          setTimeout(() => {
+            this.startListening({
+              language,
+              onTranscript: this.onTranscript,
+              onListeningChange: this.onListeningChange,
+              onPauseComplete: this.onPauseComplete,
+              onError: this.onError,
+              isRetry: true
+            });
+          }, 250);
           return;
         }
 
@@ -150,7 +183,7 @@ class SpeechService {
         } else if (event.error === 'audio-capture') {
           userMsg = 'No microphone detected or microphone is currently muted/in use by another application.';
         } else if (event.error === 'network') {
-          userMsg = 'Speech network service unreachable. Please ensure internet access or type your question.';
+          userMsg = 'Speech network service is currently busy or unreachable. You can type your question directly.';
         }
 
         if (this.onError) this.onError(userMsg);
@@ -163,6 +196,11 @@ class SpeechService {
         }
         this.isListening = false;
         if (this.onListeningChange) this.onListeningChange(false);
+
+        // Finalize any captured speech
+        if (accumulatedFinal.trim() && this.onPauseComplete) {
+          this.onPauseComplete(accumulatedFinal.trim());
+        }
       };
 
       this.recognition.start();
