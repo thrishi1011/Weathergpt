@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WeatherGPT LLM Input Schema",
+  "description": "Schema for structured payload passed to the LLM intelligence layer, strictly compatible with shared/weather-schema.json and shared/api-contract.md",
+  "type": "object",
+  "required": [
+    "question",
+    "language",
+    "weather_data"
+  ],
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "Natural language question from the user (e.g. 'Will it rain tomorrow?', 'Should I take an umbrella?')."
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "en",
+        "hi",
+        "te",
+        "ta",
+        "kn",
+        "ml",
+        "bn",
+        "mr",
+        "as",
+        "gu",
+        "ks",
+        "pa",
+        "or",
+        "ur"
+      ],
+      "default": "en",
+      "description": "Target response language code: en (English), hi (Hindi), te (Telugu), ta (Tamil), kn (Kannada), ml (Malayalam), bn (Bengali), mr (Marathi), as (Assamese), gu (Gujarati), ks (Kashmiri), pa (Punjabi), or (Odia), ur (Urdu)."
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Target location name (e.g., 'Warangal', 'Chennai', 'Bengaluru', 'Kolkata', 'Mumbai', 'Guwahati', 'Ahmedabad', 'Srinagar', 'Amritsar', 'Bhubaneswar')."
+    },
+    "reference_timestamp": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Current reference datetime / timestamp (IST) resolved by backend."
+    },
+    "weather_data": {
+      "type": "object",
+      "description": "Structured weather data adhering to shared/weather-schema.json",
+      "properties": {
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Temperature in °C"
+        },
+        "humidity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Relative humidity in %"
+        },
+        "rain_probability": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Rain probability in %"
+        },
+        "rainfall": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Expected or observed rainfall in mm"
+        },
+        "wind_speed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Wind speed in km/h"
+        },
+        "weather_condition": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Condition e.g. Sunny, Heavy Rain, Thunderstorm, Clear"
+        },
+        "imd_alert": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "",
+                "none",
+                "yellow",
+                "orange",
+                "red",
+                "Yellow",
+                "Orange",
+                "Red"
+              ]
+            },
+            "event": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        },
+        "forecast": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "Optional forecast periods if available from backend",
+          "items": {
+            "type": "object",
+            "properties": {
+              "period": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "temperature_min": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "temperature_max": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rain_probability": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rainfall": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "weather_condition": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wind_speed": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "conversation_context": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "Optional prior chat turns for coreference resolution",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true
+}
