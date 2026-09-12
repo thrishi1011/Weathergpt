@@ -14,20 +14,25 @@ import './VoiceControls.css';
  * - Telugu - te-IN
  */
 export default function VoiceControls({ location = 'Warangal', onAskComplete }) {
-  const [selectedLang, setSelectedLang] = useState('en-IN');
+  const [selectedLang, setSelectedLang] = useState('auto');
+  const [detectedLang, setDetectedLang] = useState(null);
   const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'listening' | 'processing' | 'speaking'
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [answer, setAnswer] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [activeTTSTier, setActiveTTSTier] = useState(null); // 'native' | 'edge'
+  const [activeTTSTier, setActiveTTSTier] = useState(null); // 'native' | 'edge' | 'cloud'
   const [compatNotice, setCompatNotice] = useState(null);
 
   const isMountedRef = useRef(true);
 
   useEffect(() => {
     isMountedRef.current = true;
-    setCompatNotice(getBrowserCompatibilityNotice(selectedLang));
+    if (selectedLang !== 'auto') {
+      setCompatNotice(getBrowserCompatibilityNotice(selectedLang));
+    } else {
+      setCompatNotice(null);
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -45,6 +50,7 @@ export default function VoiceControls({ location = 'Warangal', onAskComplete }) 
       stopSpeech();
     }
     setSelectedLang(langCode);
+    setDetectedLang(null);
     setVoiceState('idle');
     setErrorMsg('');
   };
@@ -73,10 +79,11 @@ export default function VoiceControls({ location = 'Warangal', onAskComplete }) 
     setTranscript('');
     setInterimTranscript('');
     setAnswer('');
+    setDetectedLang(null);
     setVoiceState('listening');
 
     speechToText.startListening({
-      language: selectedLang,
+      language: selectedLang === 'auto' ? 'en-IN' : selectedLang,
       onStart: () => {
         if (isMountedRef.current) setVoiceState('listening');
       },
@@ -94,12 +101,16 @@ export default function VoiceControls({ location = 'Warangal', onAskComplete }) 
           const response = await askBackend(finalText, location, selectedLang);
           if (!isMountedRef.current) return;
 
+          const replyLang = response.language || (selectedLang === 'auto' ? 'te-IN' : selectedLang);
+          setDetectedLang(replyLang);
           setAnswer(response.answer);
           if (onAskComplete) onAskComplete(response);
 
-          // Speak back response via hybrid TTS
+          // Speak back response in the exact detected language via TTS
           setVoiceState('speaking');
+          await speak(response.answer, replyLang, {
           await speak(response.answer, selectedLang, {
+>>>>>>> e28a13939c820df01a16e9f97bd1103f4984bd4a
             onTierSelect: (tier) => {
               if (isMountedRef.current) setActiveTTSTier(tier);
             },
@@ -235,7 +246,7 @@ export default function VoiceControls({ location = 'Warangal', onAskComplete }) 
           {answer && (
             <div className="voice-turn">
               <div className="turn-label">
-                <span>WeatherGPT:</span>
+                <span>WeatherGPT {detectedLang && SUPPORTED_LANGUAGES[detectedLang] ? `(${SUPPORTED_LANGUAGES[detectedLang].nativeLabel})` : ''}:</span>
                 {voiceState === 'speaking' && (
                   <button className="stop-btn" onClick={handleStopSpeaking} type="button">
                     Stop Audio

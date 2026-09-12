@@ -9,6 +9,7 @@
     "test": "node tests/unitTests.js"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "msedge-tts": "^2.0.7"
   }
 }

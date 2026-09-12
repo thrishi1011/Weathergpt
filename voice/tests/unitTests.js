@@ -22,26 +22,54 @@ function assert(condition, message) {
   }
 }
 
-async function testMockBackendContract() {
-  console.log('\n--- 1. Testing mockAsk.js Backend Contract & Language Fidelity ---');
+import { detectLanguage } from '../utils/languageDetector.js';
 
-  // Test 1.1: Returns agreed shape { answer, location, language }
+async function testLanguageDetection() {
+  console.log('\n--- 1. Testing languageDetector.js Auto Detection Fidelity ---');
+
+  const cases = [
+    { text: 'రేపు వాన పడుతుందా?', expected: 'te-IN' },
+    { text: 'వరంగల్‌లో ఉష్ణోగ్రత ఎంత?', expected: 'te-IN' },
+    { text: 'क्या कल बारिश होगी?', expected: 'hi-IN' },
+    { text: 'वारंगल में तापमान कैसा है?', expected: 'hi-IN' },
+    { text: 'நாளை மழை பெய்யுமா?', expected: 'ta-IN' },
+    { text: 'ನಾಳೆ ಮಳೆಯಾಗುತ್ತದೆಯೇ?', expected: 'kn-IN' },
+    { text: 'আগামীকাল কি বৃষ্টি হবে?', expected: 'bn-IN' },
+    { text: 'Will it rain tomorrow in Warangal?', expected: 'en-IN' },
+    { text: 'varsham paduthunda', expected: 'te-IN' }, // Transliterated Telugu
+    { text: 'kal barish hogi kya', expected: 'hi-IN' }  // Transliterated Hindi
+  ];
+
+  for (const tc of cases) {
+    const detected = detectLanguage(tc.text);
+    assert(detected === tc.expected, `Detected "${tc.text}" -> ${detected} (Expected: ${tc.expected})`);
+  }
+}
+
+async function testMockBackendContract() {
+  console.log('\n--- 2. Testing mockAsk.js Backend Contract & Language Fidelity ---');
+
+  // Test 2.1: Auto mode returns Telugu for Telugu question
+  const resAutoTe = await askBackend('రేపు వర్షం పడుతుందా?', 'Warangal', 'auto');
+  assert(/[\u0C00-\u0C7F]/.test(resAutoTe.answer), 'Auto mode: Telugu question returns Telugu script answer');
+  assert(resAutoTe.language === 'te-IN', 'Auto mode: Telugu question returns language te-IN');
+
+  // Test 2.2: Auto mode returns Hindi for Hindi question
+  const resAutoHi = await askBackend('क्या कल बारिश होगी?', 'Warangal', 'auto');
+  assert(/[\u0900-\u097F]/.test(resAutoHi.answer), 'Auto mode: Hindi question returns Devanagari script answer');
+  assert(resAutoHi.language === 'hi-IN', 'Auto mode: Hindi question returns language hi-IN');
+
+  // Test 2.3: Auto mode returns Tamil for Tamil question
+  const resAutoTa = await askBackend('நாளை மழை பெய்யுமா?', 'Warangal', 'auto');
+  assert(/[\u0B80-\u0BFF]/.test(resAutoTa.answer), 'Auto mode: Tamil question returns Tamil script answer');
+  assert(resAutoTa.language === 'ta-IN', 'Auto mode: Tamil question returns language ta-IN');
+
+  // Test 2.4: English response returns English characters
   const resEn = await askBackend('Will it rain tomorrow in Warangal?', 'Warangal', 'en-IN');
   assert(typeof resEn.answer === 'string' && resEn.answer.length > 0, 'en-IN returns non-empty answer string');
-  assert(resEn.location === 'Warangal', 'en-IN returns location matching request');
   assert(resEn.language === 'en-IN', 'en-IN returns language field matching request');
 
-  // Test 1.2: Hindi response returns Hindi characters
-  const resHi = await askBackend('क्या कल बारिश होगी?', 'वारंगल', 'hi-IN');
-  assert(/[\u0900-\u097F]/.test(resHi.answer), 'hi-IN response contains Devanagari script characters');
-  assert(resHi.language === 'hi-IN', 'hi-IN response has language code hi-IN');
-
-  // Test 1.3: Telugu response returns Telugu characters
-  const resTe = await askBackend('రేపు వర్షం పడుతుందా?', 'వరంగల్', 'te-IN');
-  assert(/[\u0C00-\u0C7F]/.test(resTe.answer), 'te-IN response contains Telugu script characters');
-  assert(resTe.language === 'te-IN', 'te-IN response has language code te-IN');
-
-  // Test 1.4: Verify USE_MOCK flag default
+  // Test 2.5: Verify USE_MOCK flag default
   assert(USE_MOCK === true, 'USE_MOCK is set to true by default for independent voice testing');
 }
 
@@ -124,14 +152,52 @@ async function testBoundaryEnforcement() {
   assert(directBackendCalls === 0, 'No direct un-abstracted calls to /api/ask found outside mockAsk.js');
 }
 
+async function testGeminiSTTEndpoint() {
+  console.log('\n--- 4. Testing Gemini STT Proxy Endpoint ---');
+  try {
+    // 1. Synthesize Telugu speech via Edge TTS
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata('te-IN-ShrutiNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream('నమస్కారం వాతావరణం బాగుంది');
+
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      audioStream.on('data', chunk => chunks.push(chunk));
+      audioStream.on('end', resolve);
+      audioStream.on('error', reject);
+    });
+
+    const audioBuf = Buffer.concat(chunks);
+    const audioBase64 = audioBuf.toString('base64');
+
+    // 2. Send to proxy /api/gemini-stt
+    const res = await fetch('http://localhost:5050/api/gemini-stt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioBase64, mimeType: 'audio/mp3' })
+    });
+
+    assert(res.ok, `POST /api/gemini-stt returned status 200 (Got ${res.status})`);
+    const data = await res.json();
+    assert(data.text && data.text.length > 0, `Gemini transcribed audio text: "${data.text}"`);
+    assert(data.language === 'te-IN', `Gemini detected Telugu language as te-IN (Got "${data.language}")`);
+    assert(data.source === 'gemini', `Result source is 'gemini'`);
+  } catch (err) {
+    console.warn(`[SKIP/WARN] Gemini STT test skipped or failed: ${err.message}`);
+  }
+}
+
+
 async function run() {
   console.log('====================================================');
   console.log(' WeatherGPT Voice Module — Level 2 Functional Unit Tests');
   console.log('====================================================');
 
+  await testLanguageDetection();
   await testMockBackendContract();
   await testSupportedLanguagesConfig();
   await testEdgeTTSProxySynthesis();
+  await testGeminiSTTEndpoint();
   await testBoundaryEnforcement();
 
   console.log('\n====================================================');

@@ -252,6 +252,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           weatherData: state.weatherData
         });
 
+        // Sync detected language from Gemini to UI state & input bar
+        if (result.language && result.language !== state.language) {
+          state.language = result.language;
+          inputBar.setLanguage(result.language);
+        }
+
         if (result.isDemo && !sessionStorage.getItem('demo_notified')) {
           toasts.showWarning('Backend not detected on :8000. Displaying simulated response adhering to api-contract.', 'Demo Mode Active');
           sessionStorage.setItem('demo_notified', 'true');

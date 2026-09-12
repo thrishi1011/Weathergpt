@@ -4,12 +4,26 @@
  */
 
 export const SUPPORTED_LANGUAGES = {
+  'auto': {
+    code: 'auto',
+    label: 'Auto Detect',
+    nativeLabel: '🌐 Auto',
+    defaultEdgeVoice: 'te-IN-ShrutiNeural',
+    speechRecognitionLang: 'en-IN'
+  },
   'en-IN': {
     code: 'en-IN',
     label: 'English (India)',
-    nativeLabel: 'English (India)',
+    nativeLabel: 'English',
     defaultEdgeVoice: 'en-IN-NeerjaNeural',
     speechRecognitionLang: 'en-IN'
+  },
+  'te-IN': {
+    code: 'te-IN',
+    label: 'Telugu',
+    nativeLabel: 'తెలుగు',
+    defaultEdgeVoice: 'te-IN-ShrutiNeural',
+    speechRecognitionLang: 'te-IN'
   },
   'hi-IN': {
     code: 'hi-IN',
@@ -18,12 +32,47 @@ export const SUPPORTED_LANGUAGES = {
     defaultEdgeVoice: 'hi-IN-SwaraNeural',
     speechRecognitionLang: 'hi-IN'
   },
-  'te-IN': {
-    code: 'te-IN',
-    label: 'Telugu',
-    nativeLabel: 'తెలుగు',
-    defaultEdgeVoice: 'te-IN-ShrutiNeural',
-    speechRecognitionLang: 'te-IN'
+  'ta-IN': {
+    code: 'ta-IN',
+    label: 'Tamil',
+    nativeLabel: 'தமிழ்',
+    defaultEdgeVoice: 'ta-IN-PallaviNeural',
+    speechRecognitionLang: 'ta-IN'
+  },
+  'kn-IN': {
+    code: 'kn-IN',
+    label: 'Kannada',
+    nativeLabel: 'ಕನ್ನಡ',
+    defaultEdgeVoice: 'kn-IN-SapnaNeural',
+    speechRecognitionLang: 'kn-IN'
+  },
+  'ml-IN': {
+    code: 'ml-IN',
+    label: 'Malayalam',
+    nativeLabel: 'മലയാളം',
+    defaultEdgeVoice: 'ml-IN-SobhanaNeural',
+    speechRecognitionLang: 'ml-IN'
+  },
+  'bn-IN': {
+    code: 'bn-IN',
+    label: 'Bengali',
+    nativeLabel: 'বাংলা',
+    defaultEdgeVoice: 'bn-IN-TanishaaNeural',
+    speechRecognitionLang: 'bn-IN'
+  },
+  'mr-IN': {
+    code: 'mr-IN',
+    label: 'Marathi',
+    nativeLabel: 'मराठी',
+    defaultEdgeVoice: 'mr-IN-AarohiNeural',
+    speechRecognitionLang: 'mr-IN'
+  },
+  'gu-IN': {
+    code: 'gu-IN',
+    label: 'Gujarati',
+    nativeLabel: 'ગુજરાતી',
+    defaultEdgeVoice: 'gu-IN-DhwaniNeural',
+    speechRecognitionLang: 'gu-IN'
   }
 };
 

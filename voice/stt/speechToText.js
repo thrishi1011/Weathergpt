@@ -65,8 +65,17 @@ class SpeechToTextManager {
     this.activeCallbacks = { onStart, onInterim, onResult, onError, onEnd };
 
     this.recognition = this._initRecognition();
-    const langConfig = SUPPORTED_LANGUAGES[language] || SUPPORTED_LANGUAGES['en-IN'];
-    this.recognition.lang = langConfig.speechRecognitionLang || language;
+    if (language === 'auto') {
+      // Empty string tells Chrome to use the browser/system language — allows
+      // multilingual recognition instead of being locked to a single locale.
+      // Chrome will still return native-script text (e.g., Telugu or Hindi)
+      // if the user has that language pack installed.
+      this.recognition.lang = '';
+      console.log('[STT] Auto-detect mode: recognition.lang set to "" (system default)');
+    } else {
+      const langConfig = SUPPORTED_LANGUAGES[language] || SUPPORTED_LANGUAGES['en-IN'];
+      this.recognition.lang = langConfig.speechRecognitionLang || language;
+    }
 
     let finalTranscript = '';
     let latestInterim = '';

@@ -13,7 +13,12 @@ dist/
 
 # Environment
 .env
-*.env.local
+.env.*
+*.env
+**/.env
+**/.env.*
+voice/.env
+backend/.env
 
 # OS
 .DS_Store

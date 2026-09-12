@@ -1,16 +1,17 @@
 /**
  * WeatherGPT Speech Service
- * Speech-to-Text (STT) with auto language detection and Neural Indic TTS.
+ * Pure Gemini AI Multilingual Speech-to-Text (STT) + Neural Indic TTS.
  *
- * Key behaviours:
- *  - Pressing mic immediately listens and auto-types into the input box in real-time
- *  - Auto-detects spoken language (Telugu, Hindi, English, etc.) from Unicode scripts & transliterations
- *  - Captures single/multi-phrase utterances cleanly without crashing or overlapping sessions
- *  - Auto-finalizes after ~3.5 seconds of silence or when user presses send
- *  - Neural Indic TTS via /api/tts backend (Hindi, Telugu, Tamil, Kannada, English…)
+ * Design:
+ *  1. Records high-fidelity microphone audio via MediaRecorder.
+ *  2. Real-time Voice Activity Detection (VAD) detects when the user speaks and pauses.
+ *  3. On pause (or mic button click), the audio is sent to /api/transcribe.
+ *  4. Gemini AI detects the spoken language and transcribes accurately in native script.
+ *  5. Never uses browser English STT to avoid typing random English words or phonetic gibberish.
+ *  6. Supports Telugu, Hindi, English, Tamil, Kannada, Malayalam, Bengali, Marathi, Gujarati, etc.
  */
 
-// BCP-47 language codes for SpeechRecognition
+// BCP-47 language codes for TTS & language mapping
 export const STT_LANG_MAP = {
   en: 'en-IN',
   te: 'te-IN',
@@ -26,7 +27,6 @@ export const STT_LANG_MAP = {
   ur: 'ur-PK',
 };
 
-// Map from 2-letter code to BCP-47 for TTS
 export const TTS_LANG_MAP = {
   en: 'en-IN',
   te: 'te-IN',
@@ -44,12 +44,11 @@ export const TTS_LANG_MAP = {
 
 /**
  * Detect the written script / language from Unicode codepoints & common Indian transliteration words.
- * Returns a 2-letter ISO code: 'te', 'hi', 'en', etc.
  */
 export function detectScriptLanguage(str) {
   if (!str) return 'en';
 
-  // 1. Unicode script detection (high confidence)
+  // 1. Unicode script detection (authoritative)
   if (/[\u0C00-\u0C7F]/.test(str)) return 'te';   // Telugu
   if (/[\u0900-\u097F]/.test(str)) return 'hi';   // Devanagari (Hindi/Marathi)
   if (/[\u0B80-\u0BFF]/.test(str)) return 'ta';   // Tamil
@@ -65,17 +64,33 @@ export function detectScriptLanguage(str) {
   const lower = str.toLowerCase();
   const teluguPatterns = /\b(varsham|paduthunda|padtunda|eroju|repu|ninna|ela|undhi|undha|vathavaranam|raithu|polam|pantalu|gali|chali|yela|telugu|cheppu)\b/i;
   const hindiPatterns = /\b(mausam|kaisa|barish|hogi|aaj|kal|kisan|fasal|tapman|hawa|garmi|sardi|kya|batao|hoga|rahega|hindi|bataiye)\b/i;
+  const tamilPatterns = /\b(mazhai|peyyuma|peyyum|eppadi|irukku|irukkum|solunga|inraikku|naalai|veppam|vanakkam)\b/i;
+  const kannadaPatterns = /\b(male|barutha|baruttadha|hegidhe|hegide|heli|ee dina|naale|havamana|bisi|namaskara)\b/i;
+  const marathiPatterns = /\b(paus|padel|udya|kasa|aahe|havaman|kiti|sang)\b/i;
+  const gujaratiPatterns = /\b(varsad|padse|aaje|kaale|kevo|havaman)\b/i;
+  const bengaliPatterns = /\b(bristi|hobe|kemon|aajke|kaalke|abohawa)\b/i;
+  const malayalamPatterns = /\b(mazha|peyyum|engane|undu|innu|naale|kaalanila)\b/i;
 
   if (teluguPatterns.test(lower)) return 'te';
   if (hindiPatterns.test(lower)) return 'hi';
+  if (tamilPatterns.test(lower)) return 'ta';
+  if (kannadaPatterns.test(lower)) return 'kn';
+  if (marathiPatterns.test(lower)) return 'mr';
+  if (gujaratiPatterns.test(lower)) return 'gu';
+  if (bengaliPatterns.test(lower)) return 'bn';
+  if (malayalamPatterns.test(lower)) return 'ml';
 
   return 'en';
 }
 
 class SpeechService {
   constructor() {
-    this.recognition       = null;
+    this.mediaRecorder     = null;
+    this.mediaStream       = null;
+    this.audioContext      = null;
+    this.audioChunks       = [];
     this.isListening       = false;
+    this.isProcessing      = false;
     this.isSpeaking        = false;
     this.currentAudio      = null;
     this.currentUtterance  = null;
@@ -83,17 +98,17 @@ class SpeechService {
     this.onTranscript      = null;
     this.onLanguageDetect  = null;
     this.onPauseComplete   = null;
+    this.onStatusText      = null;
     this.onError           = null;
-    this.silenceTimeout    = null;
-    this.currentText       = '';
-    this.activeLang        = 'en-IN';
-    this._restartTimer     = null;
-    this._allowRestart     = false;
+    this.activeLang        = 'en';
+    this._vadAnimId        = null;
+    this._maxDurationTimer = null;
   }
 
   isSttSupported() {
     return typeof window !== 'undefined' &&
-      Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+      (Boolean(window.navigator?.mediaDevices?.getUserMedia) ||
+       Boolean(window.MediaRecorder));
   }
 
   isTtsSupported() {
@@ -102,259 +117,300 @@ class SpeechService {
   }
 
   /**
-   * Start listening to voice input and auto-type into the target UI.
-   *
-   * @param {Object} opts
-   * @param {string}   [opts.language='en']     - 2-letter lang code ('en', 'te', 'hi'...)
-   * @param {Function} opts.onTranscript        - called with live text while speaking
-   * @param {Function} opts.onLanguageDetect    - called when language is detected
-   * @param {Function} opts.onListeningChange   - called with boolean
-   * @param {Function} opts.onPauseComplete     - called with (finalTranscript, detectedLang)
-   * @param {Function} opts.onError             - called with friendly error message
+   * Start recording user speech via MediaRecorder with live Voice Activity Detection.
    */
-  startListening({ language = 'en', onTranscript, onLanguageDetect, onListeningChange, onPauseComplete, onError } = {}) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      if (onError) onError('Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.');
-      return false;
+  async startListening({ language = 'en', onTranscript, onLanguageDetect, onListeningChange, onPauseComplete, onStatusText, onError } = {}) {
+    if (this.isListening || this.isProcessing) {
+      await this.stopListening();
     }
 
-    // Stop any existing recognition cleanly
-    if (this.isListening) {
-      this.stopListening();
-    }
-
-    // Stop ongoing TTS before listening
     this.stopSpeaking();
 
-    // Store callbacks
     this.onTranscript      = onTranscript;
     this.onLanguageDetect  = onLanguageDetect;
     this.onListeningChange = onListeningChange;
     this.onPauseComplete   = onPauseComplete;
+    this.onStatusText      = onStatusText;
     this.onError           = onError;
+    this.activeLang        = language || 'en';
+    this.audioChunks       = [];
 
-    this.currentText       = '';
-    this.isListening       = true;
-    this._allowRestart     = true;
-    this.activeLang        = STT_LANG_MAP[language] || 'en-IN';
-
-    if (this.onListeningChange) {
-      this.onListeningChange(true);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (this.onError) this.onError('Microphone access is not supported in this browser. Please use Chrome or Edge.');
+      return false;
     }
-
-    this._spawnRecognition(SpeechRecognition);
-    return true;
-  }
-
-  /** Change language on the fly while listening */
-  setLanguage(language) {
-    const newLang = STT_LANG_MAP[language] || 'en-IN';
-    if (this.activeLang === newLang) return;
-    this.activeLang = newLang;
-    if (this.isListening) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        this._spawnRecognition(SpeechRecognition);
-      }
-    }
-  }
-
-  /** Internal: spawn a clean SpeechRecognition instance */
-  _spawnRecognition(SpeechRecognition) {
-    if (!this.isListening) return;
-
-    // Clean up any previous recognition instance completely
-    if (this.recognition) {
-      const old = this.recognition;
-      this.recognition = null;
-      old.onstart = null;
-      old.onresult = null;
-      old.onerror = null;
-      old.onend = null;
-      try { old.abort(); } catch (_) {}
-    }
-
-    const rec = new SpeechRecognition();
-    rec.continuous      = false; // single utterance per session avoids localhost socket timeouts
-    rec.interimResults  = true;  // delivers live speech as the user speaks!
-    rec.maxAlternatives = 1;
-    rec.lang            = this.activeLang;
-    this.recognition    = rec;
-
-    let sessionFinal = '';
-    let sessionInterim = '';
-
-    const resetSilence = () => {
-      if (this.silenceTimeout) {
-        clearTimeout(this.silenceTimeout);
-        this.silenceTimeout = null;
-      }
-      this.silenceTimeout = setTimeout(() => {
-        console.log('[Speech] 3.5s pause detected. Finalizing transcript.');
-        this._allowRestart = false;
-        const textToFinalize = this.currentText.trim();
-        this.stopListening();
-        if (textToFinalize && this.onPauseComplete) {
-          const detected = detectScriptLanguage(textToFinalize);
-          this.onPauseComplete(textToFinalize, detected);
-        }
-      }, 3500);
-    };
-
-    rec.onstart = () => {
-      console.log(`[Speech] Microphone listening started (language: ${rec.lang})`);
-    };
-
-    rec.onresult = (event) => {
-      sessionInterim = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const item = event.results[i];
-        if (item.isFinal) {
-          sessionFinal += item[0].transcript + ' ';
-        } else {
-          sessionInterim += item[0].transcript;
-        }
-      }
-
-      // Combine previous speech + this session's speech
-      const combined = (this.currentText ? this.currentText + ' ' : '') + sessionFinal + sessionInterim;
-      const clean = combined.replace(/\s+/g, ' ').trim();
-
-      if (clean) {
-        // Auto-type directly into input bar in real time!
-        if (this.onTranscript) {
-          this.onTranscript(clean);
-        }
-
-        // Auto-detect language
-        const detected = detectScriptLanguage(clean);
-        if (detected && this.onLanguageDetect) {
-          this.onLanguageDetect(detected);
-        }
-
-        // Reset the silence pause timer
-        resetSilence();
-      }
-    };
-
-    rec.onerror = (event) => {
-      console.warn('[Speech] Recognition error:', event.error);
-
-      // Benign non-errors (silence or aborted by user)
-      if (event.error === 'no-speech' || event.error === 'aborted') {
-        return;
-      }
-
-      // If user has already spoken text, preserve it and finalize cleanly!
-      const captured = (this.currentText + ' ' + sessionFinal + ' ' + sessionInterim).trim();
-      if (captured) {
-        this._allowRestart = false;
-        this.stopListening();
-        if (this.onPauseComplete) {
-          this.onPauseComplete(captured, detectScriptLanguage(captured));
-        }
-        return;
-      }
-
-      // Network error on localhost (Google Speech server unreachable)
-      if (event.error === 'network') {
-        console.warn('[Speech] Network error connecting to speech recognition server.');
-        this._allowRestart = false;
-        this.stopListening();
-        if (this.onError) {
-          this.onError('Speech network service unreachable. Please ensure internet access or type your question.');
-        }
-        return;
-      }
-
-      // Permission or hardware errors
-      this._allowRestart = false;
-      this.stopListening();
-      let msg = 'Voice input error. Please try again.';
-      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-        msg = 'Microphone permission denied. Please allow microphone access in your browser.';
-      } else if (event.error === 'audio-capture') {
-        msg = 'No microphone detected or microphone is currently in use.';
-      }
-      if (this.onError) {
-        this.onError(msg);
-      }
-    };
-
-    rec.onend = () => {
-      // Accumulate any final text from this session
-      if (sessionFinal.trim()) {
-        this.currentText = (this.currentText ? this.currentText + ' ' : '') + sessionFinal.trim();
-        this.currentText = this.currentText.trim();
-      }
-
-      // If finished or stopped listening, close down cleanly
-      if (!this.isListening || !this._allowRestart) {
-        if (this.isListening) {
-          this.stopListening();
-        }
-        return;
-      }
-
-      // If session ended naturally (pause in speech) and we're still listening,
-      // restart cleanly after 150ms to allow multi-sentence speaking
-      clearTimeout(this._restartTimer);
-      this._restartTimer = setTimeout(() => {
-        if (this.isListening && this._allowRestart) {
-          this._spawnRecognition(SpeechRecognition);
-        }
-      }, 150);
-    };
 
     try {
-      rec.start();
-    } catch (err) {
-      console.error('[Speech] Failed to start recognition:', err);
-      const captured = this.currentText.trim();
-      if (captured && this.onPauseComplete) {
-        this.onPauseComplete(captured, detectScriptLanguage(captured));
-      } else if (this.onError) {
-        this.onError('Failed to start microphone. Please click the mic button again.');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      this.mediaStream = stream;
+
+      // Determine best audio mime type supported by browser
+      let mimeType = 'audio/webm;codecs=opus';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          if (MediaRecorder.isTypeSupported('audio/webm')) {
+            mimeType = 'audio/webm';
+          } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            mimeType = 'audio/mp4';
+          } else {
+            mimeType = '';
+          }
+        }
       }
-      this.stopListening();
+
+      const recorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, recorderOptions);
+      this.mediaRecorder = recorder;
+      this.isListening   = true;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          this.audioChunks.push(e.data);
+        }
+      };
+
+      recorder.start(100); // 100ms timeslices for reliable chunk buffering
+
+      if (this.onListeningChange) {
+        this.onListeningChange(true);
+      }
+      if (this.onStatusText) {
+        this.onStatusText('🎙️ Listening… speak in your language');
+      }
+
+      // Initialize live Voice Activity Detection (VAD) via Web Audio API
+      this._startVAD(stream);
+
+      // Safety timeout: max 12 seconds per utterance
+      this._maxDurationTimer = setTimeout(() => {
+        if (this.isListening) {
+          console.log('[Speech] Max recording duration reached. Stopping.');
+          this.stopListening();
+        }
+      }, 12000);
+
+      return true;
+    } catch (err) {
+      console.warn('[Speech] Error starting audio recording:', err);
+      this._cleanupAudio();
+      this.isListening = false;
+      if (this.onListeningChange) this.onListeningChange(false);
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        if (this.onError) {
+          this.onError('Microphone permission denied. Please allow microphone access in your browser address bar.');
+        }
+      } else {
+        if (this.onError) {
+          this.onError(`Microphone error: ${err.message || 'could not record audio'}`);
+        }
+      }
+      return false;
     }
   }
 
   /**
-   * Stop listening and finalize any captured speech.
+   * Real-time Voice Activity Detection using AnalyserNode.
+   * Tracks user speech volume and triggers transcription after a natural pause.
    */
-  stopListening() {
-    this._allowRestart = false;
-    this.isListening   = false;
+  _startVAD(stream) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
 
-    if (this._restartTimer) {
-      clearTimeout(this._restartTimer);
-      this._restartTimer = null;
+      const audioCtx = new AudioCtx();
+      this.audioContext = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.3;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+      let silenceStartTime = null;
+      let hasSpoken = false;
+
+      const checkVolume = () => {
+        if (!this.isListening) return;
+
+        analyser.getByteFrequencyData(buffer);
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i++) {
+          sum += buffer[i];
+        }
+        const avg = sum / buffer.length;
+
+        // Human speech volume threshold
+        if (avg > 14) {
+          if (!hasSpoken) {
+            hasSpoken = true;
+            if (this.onStatusText) {
+              this.onStatusText('🎙️ Hearing your voice… keep speaking');
+            }
+          }
+          silenceStartTime = null;
+        } else if (hasSpoken) {
+          // Speech was active, now silent
+          if (!silenceStartTime) {
+            silenceStartTime = Date.now();
+          } else if (Date.now() - silenceStartTime > 2200) {
+            // 2.2 seconds of silence after speaking -> user finished asking question!
+            console.log('[Speech] Natural pause detected after speech. Auto-transcribing with Gemini AI.');
+            this.stopListening();
+            return;
+          }
+        }
+
+        this._vadAnimId = requestAnimationFrame(checkVolume);
+      };
+
+      this._vadAnimId = requestAnimationFrame(checkVolume);
+    } catch (e) {
+      console.warn('[Speech] VAD init notice:', e);
     }
-    if (this.silenceTimeout) {
-      clearTimeout(this.silenceTimeout);
-      this.silenceTimeout = null;
+  }
+
+  setLanguage(language) {
+    this.activeLang = language || 'en';
+  }
+
+  /**
+   * Stop recording and send the actual audio to Gemini API for native script transcription & language detection.
+   */
+  async stopListening() {
+    if (!this.isListening && !this.isProcessing) return;
+
+    if (this._maxDurationTimer) {
+      clearTimeout(this._maxDurationTimer);
+      this._maxDurationTimer = null;
+    }
+    if (this._vadAnimId) {
+      cancelAnimationFrame(this._vadAnimId);
+      this._vadAnimId = null;
     }
 
-    if (this.recognition) {
-      const rec = this.recognition;
-      this.recognition = null;
-      rec.onstart  = null;
-      rec.onresult = null;
-      rec.onerror  = null;
-      rec.onend    = null;
-      try { rec.abort(); } catch (_) {}
-    }
+    this.isListening = false;
+    this.isProcessing = true;
 
     if (this.onListeningChange) {
       this.onListeningChange(false);
     }
+
+    if (this.onStatusText) {
+      this.onStatusText('✨ Transcribing with Gemini AI in native script…');
+    }
+
+    // Collect audio blob from MediaRecorder
+    let audioBlob = null;
+    let mimeType = 'audio/webm';
+
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try {
+        await new Promise((resolve) => {
+          this.mediaRecorder.onstop = () => resolve();
+          this.mediaRecorder.stop();
+        });
+        mimeType = this.mediaRecorder.mimeType || 'audio/webm';
+        if (this.audioChunks.length > 0) {
+          audioBlob = new Blob(this.audioChunks, { type: mimeType });
+        }
+      } catch (err) {
+        console.warn('[Speech] MediaRecorder stop notice:', err);
+      }
+    }
+
+    this._cleanupAudio();
+
+    // Verify audio exists and has sufficient bytes
+    if (!audioBlob || audioBlob.size < 1200) {
+      this.isProcessing = false;
+      console.log('[Speech] Audio empty or too short:', audioBlob?.size);
+      if (this.onError) {
+        this.onError('No speech detected. Please press the mic and speak your question.');
+      }
+      return;
+    }
+
+    // Send actual microphone audio to backend /api/transcribe -> Gemini
+    try {
+      const base64Audio = await this._blobToBase64(audioBlob);
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio: base64Audio,
+          mime_type: mimeType
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+      const transcript = (data.text || data.transcript || '').trim();
+      const detectedLang = data.language || data.language_code || detectScriptLanguage(transcript);
+
+      if (transcript) {
+        console.log(`[Speech] Gemini Transcription SUCCESS: "${transcript}" (language: ${detectedLang})`);
+        if (this.onTranscript) this.onTranscript(transcript);
+        if (this.onLanguageDetect) this.onLanguageDetect(detectedLang);
+        if (this.onPauseComplete) this.onPauseComplete(transcript, detectedLang);
+      } else {
+        if (this.onError) {
+          this.onError('No speech detected. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('[Speech] Gemini transcription error:', err);
+      if (this.onError) {
+        this.onError('Transcription service temporarily unavailable. Please type your question or try again.');
+      }
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  _cleanupAudio() {
+    if (this._vadAnimId) {
+      cancelAnimationFrame(this._vadAnimId);
+      this._vadAnimId = null;
+    }
+    if (this.audioContext) {
+      try { this.audioContext.close(); } catch (_) {}
+      this.audioContext = null;
+    }
+    if (this.mediaStream) {
+      try {
+        this.mediaStream.getTracks().forEach(t => t.stop());
+      } catch (_) {}
+      this.mediaStream = null;
+    }
+    this.mediaRecorder = null;
+  }
+
+  _blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        const base64 = typeof result === 'string' ? (result.split(',')[1] || result) : '';
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 
   /**
-   * Speak text using Neural TTS (backend /api/tts) with Indic language support.
-   * Falls back to browser SpeechSynthesis if backend TTS fails.
+   * Speak text using Neural backend TTS or browser SpeechSynthesis.
    */
   async speakText({ text, language = 'en', onStart, onEnd, onError }) {
     this.stopSpeaking();
@@ -369,7 +425,6 @@ class SpeechService {
 
     const bcp47 = TTS_LANG_MAP[language] || language;
 
-    // Primary: neural backend TTS
     try {
       const audioUrl = `/api/tts?text=${encodeURIComponent(cleanText)}&language=${encodeURIComponent(bcp47)}`;
       const audio = new Audio(audioUrl);
@@ -380,14 +435,13 @@ class SpeechService {
       audio.onended  = () => { this.isSpeaking = false; this.currentAudio = null; if (onEnd) onEnd(); };
       audio.onerror  = () => {
         this.currentAudio = null;
-        console.warn('[Speech] Neural TTS failed, falling back to SpeechSynthesis');
         this._speakNativeFallback({ cleanText, bcp47, onStart, onEnd, onError });
       };
 
       await audio.play();
       return;
     } catch (err) {
-      console.warn('[Speech] Audio.play() failed:', err);
+      console.warn('[Speech] Neural TTS playback fallback:', err);
       this._speakNativeFallback({ cleanText, bcp47, onStart, onEnd, onError });
     }
   }

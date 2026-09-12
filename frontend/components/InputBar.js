@@ -20,6 +20,15 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
     en: 'Ask anything about weather… or press 🎤 to speak',
     te: 'వాతావరణం గురించి ఏదైనా అడగండి… లేదా మాట్లాడటానికి 🎤 నొక్కండి',
     hi: 'मौसम के बारे में कुछ भी पूछें… या बोलने के लिए 🎤 दबाएं',
+    ta: 'வானிலை பற்றி ஏதேனும் கேட்கவும்… அல்லது பேச 🎤 அழுத்தவும்',
+    kn: 'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ… ಅಥವಾ ಮಾತನಾಡಲು 🎤 ಒತ್ತಿರಿ',
+    ml: 'കാലാവസ്ഥയെക്കുറിച്ച് എന്തെങ്കിലും ചോദിക്കൂ… അല്ലെങ്കിൽ സംസാരിക്കാൻ 🎤 അമർത്തുക',
+    bn: 'আবহাওয়া সম্পর্কে যেকোনো প্রশ্ন করুন… বা কথা বলতে 🎤 চাপুন',
+    mr: 'हवामानाबद्दल काहीही विचारा… किंवा बोलण्यासाठी 🎤 दाबा',
+    gu: 'હવામાન વિશે કંઈપણ પૂછો… અથવા બોલવા માટે 🎤 દબાવો',
+    pa: 'ਮੌਸਮ ਬਾਰੇ ਕੁਝ ਵੀ ਪੁੱਛੋ… ਜਾਂ ਬੋਲਣ ਲਈ 🎤 ਦਬਾਓ',
+    or: 'ପାଣିପାଗ ବିଷୟରେ ଯାହା ପଚାରନ୍ତୁ… ବା କହିବା ପାଇଁ 🎤 ଦବାନ୍ତୁ',
+    ur: 'موسم کے بارے میں کچھ بھی پوچھیں… یا بولنے کے لیے 🎤 دبائیں',
   };
 
   const LANG_NAMES = {
@@ -109,8 +118,8 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
     if (onLanguageChange) onLanguageChange(lang);
   }
 
-  // Click on language badge toggles between English, Telugu, and Hindi
-  const LANG_CYCLE = ['en', 'te', 'hi'];
+  // Click on language badge toggles through all configured voice languages
+  const LANG_CYCLE = ['en', 'te', 'hi', 'ta', 'kn', 'ml', 'bn', 'mr', 'gu'];
   langBadge.style.cursor = 'pointer';
   langBadge.addEventListener('click', () => {
     const currentIndex = LANG_CYCLE.indexOf(selectedLanguage);
@@ -163,11 +172,13 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   // ──────────────────────────────────────────────────────────────────────
   // Voice Input: Single click on mic immediately listens and auto-types
   // ──────────────────────────────────────────────────────────────────────
-  micBtn.addEventListener('click', () => {
-    // If already listening → stop
+  micBtn.addEventListener('click', async () => {
+    // If already listening → user stopped speaking manually, transcribe now
     if (isListening) {
-      speechService.stopListening();
-      resetVoiceUI();
+      voiceText.textContent = '✨ Transcribing with Gemini AI in native script…';
+      voiceWave.style.display = 'none';
+      micBtn.classList.remove('listening');
+      await speechService.stopListening();
       return;
     }
 
@@ -182,15 +193,16 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
     voiceText.textContent = `🎙️ Listening (${LANG_NAMES[selectedLanguage] || 'Any language'})… speak now`;
     voiceWave.style.display = '';
 
-    // 3. Start listening with current language setting
-    const started = speechService.startListening({
+    // 3. Start listening with pure Gemini audio recording + VAD
+    const started = await speechService.startListening({
       language: selectedLanguage,
 
       onTranscript: (transcript) => {
-        // Auto-type live transcript into textarea as user speaks
+        // Auto-type exact transcript into textarea as returned by Gemini
         textarea.value = transcript;
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        textarea.focus();
         try {
           textarea.setSelectionRange(transcript.length, transcript.length);
         } catch (_) {}
@@ -199,7 +211,6 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
       onLanguageDetect: (lang) => {
         // Auto-detect language from speech and update UI
         setLanguage(lang);
-        voiceText.textContent = `🎙️ Listening (${LANG_NAMES[lang] || lang})… speak now`;
       },
 
       onListeningChange: (listening) => {
@@ -207,6 +218,8 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
         if (listening) {
           micBtn.classList.add('listening');
           voiceBar.classList.add('active');
+          voiceBar.classList.remove('ready');
+          voiceWave.style.display = '';
         } else {
           micBtn.classList.remove('listening');
         }
@@ -225,15 +238,21 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
         if (detectedLang) setLanguage(detectedLang);
 
         // Show ready state
+        isListening = false;
         micBtn.classList.remove('listening');
         voiceBar.classList.add('ready');
         voiceBar.classList.remove('active');
         voiceWave.style.display = 'none';
-        voiceText.textContent = '✅ Voice captured — press Enter or ➤ to send';
+        const langName = LANG_NAMES[detectedLang] || detectedLang;
+        voiceText.textContent = `✅ Voice captured in ${langName} — press Enter or ➤ to send`;
 
         setTimeout(() => {
           resetVoiceUI();
         }, 5000);
+      },
+
+      onStatusText: (statusMsg) => {
+        if (voiceText) voiceText.textContent = statusMsg;
       },
 
       onError: (errMsg) => {

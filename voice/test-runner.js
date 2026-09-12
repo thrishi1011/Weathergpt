@@ -12,9 +12,11 @@ async function runTests() {
   console.log('--- [1/2] Testing Mock Backend askBackend() ---');
 
   const testCases = [
-    { lang: 'en-IN', q: 'Will it rain tomorrow in Warangal?' },
-    { lang: 'hi-IN', q: 'क्या कल बारिश होगी?' },
-    { lang: 'te-IN', q: 'రేపు వర్షం పడుతుందా?' }
+    { lang: 'auto', q: 'రేపు వర్షం పడుతుందా?', expectedLang: 'te-IN' },
+    { lang: 'auto', q: 'क्या कल बारिश होगी?', expectedLang: 'hi-IN' },
+    { lang: 'auto', q: 'நாளை மழை பெய்யுமா?', expectedLang: 'ta-IN' },
+    { lang: 'en-IN', q: 'Will it rain tomorrow in Warangal?', expectedLang: 'en-IN' },
+    { lang: 'te-IN', q: 'వరంగల్‌లో ఉష్ణోగ్రత ఎంత?', expectedLang: 'te-IN' }
   ];
 
   for (const tc of testCases) {
@@ -22,7 +24,7 @@ async function runTests() {
     if (!result.answer) {
       throw new Error(`Failed mock ask for ${tc.lang}: empty answer`);
     }
-    console.log(`[PASS] ${tc.lang} Mock Answer: "${result.answer.slice(0, 50)}..."`);
+    console.log(`[PASS] (${tc.lang} -> Detected: ${result.language}) Answer: "${result.answer.slice(0, 45)}..."`);
   }
 
   console.log('\n--- [2/2] Testing msedge-tts Neural Synthesis for Telugu & Hindi ---');

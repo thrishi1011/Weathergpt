@@ -200,3 +200,23 @@ export async function checkBackendConnection() {
   return false;
 }
 
+/**
+ * Detect language of query using Gemini API backend
+ */
+export async function detectLanguage(text) {
+  if (!text || !text.trim()) return { language: 'en' };
+  try {
+    const res = await fetch('/api/detect-language', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.trim() })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.debug('Language detection error:', err);
+  }
+  return { language: 'en' };
+}
+
