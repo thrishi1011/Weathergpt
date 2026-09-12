@@ -85,7 +85,7 @@
 
   <div class="page-header">
     <h1>WeatherGPT Voice Module</h1>
-    <p>Speech-to-Text & Hybrid Text-to-Speech (English, Hindi, Telugu)</p>
+    <p>Speech-to-Text (Gemini AI + Browser Fallback) &amp; Hybrid Text-to-Speech</p>
   </div>
 
   <div id="voice-root">
@@ -96,9 +96,12 @@
           <span>🎙️</span> WeatherGPT Voice
         </div>
         <div class="voice-lang-selector" id="lang-selector">
-          <button class="lang-btn active" data-lang="en-IN">English</button>
-          <button class="lang-btn" data-lang="hi-IN">हिंदी</button>
+          <button class="lang-btn active" data-lang="auto">🌐 Auto</button>
           <button class="lang-btn" data-lang="te-IN">తెలుగు</button>
+          <button class="lang-btn" data-lang="hi-IN">हिंदी</button>
+          <button class="lang-btn" data-lang="en-IN">English</button>
+          <button class="lang-btn" data-lang="ta-IN">தமிழ்</button>
+          <button class="lang-btn" data-lang="kn-IN">ಕನ್ನಡ</button>
         </div>
       </div>
 
@@ -158,12 +161,14 @@
 
   <script type="module">
     import { speechToText } from './stt/speechToText.js';
+    import { geminiSTT } from './stt/geminiSTT.js';
     import { speak, stopSpeech } from './tts/ttsRouter.js';
     import { askBackend } from './mock/mockAsk.js';
     import { SUPPORTED_LANGUAGES, getBrowserCompatibilityNotice, getAvailableVoices } from './utils/languageSupport.js';
+    import { detectLanguage } from './utils/languageDetector.js';
     import { runCapabilityCheck } from './tests/capabilityCheck.js';
 
-    let currentLang = 'en-IN';
+    let currentLang = 'auto';
     let currentState = 'idle';
 
     const statusBadge = document.getElementById('status-badge');
@@ -188,6 +193,10 @@
     }
 
     function updateNotice() {
+      if (currentLang === 'auto') {
+        noticeBox.style.display = 'none';
+        return;
+      }
       const notice = getBrowserCompatibilityNotice(currentLang);
       if (notice) {
         noticeBox.style.display = 'block';
@@ -247,6 +256,7 @@
       }
 
       if (currentState === 'listening') {
+        geminiSTT.stopRecording();
         speechToText.stopListening();
         setUIState('idle');
         return;
@@ -259,55 +269,110 @@
       turnAnswer.style.display = 'none';
       textAnswer.textContent = '';
 
-      speechToText.startListening({
-        language: currentLang,
-        onInterim: (interim) => {
-          textQuestion.textContent = interim;
-        },
-        onResult: async (finalText) => {
-          textQuestion.textContent = finalText;
-          setUIState('processing');
-          log(`STT Transcribed: "${finalText}"`);
 
-          try {
-            const resp = await askBackend(finalText, 'Warangal', currentLang);
-            log(`Backend Answer: "${resp.answer}"`);
-            turnAnswer.style.display = 'block';
-            textAnswer.textContent = resp.answer;
+      /**
+       * Common handler — called once a transcript + language is known,
+       * regardless of whether it came from Gemini or the browser STT.
+       */
+      async function handleTranscript(finalText, detectedLang, source) {
+        textQuestion.textContent = finalText;
+        setUIState('processing');
+        const srcLabel = source === 'gemini' ? '[Gemini STT]' : '[Browser STT]';
+        log(`${srcLabel} transcript: "${finalText}"`);
+        log(`${srcLabel} language: ${detectedLang}`);
 
-            let chosenTier = 'native';
-            setUIState('speaking', 'initializing');
+        try {
+          const effectiveLang = detectedLang || (currentLang === 'auto' ? 'en-IN' : currentLang);
+          const resp = await askBackend(finalText, 'Warangal', effectiveLang);
+          const replyLang = resp.language || effectiveLang;
+          const langLabel = SUPPORTED_LANGUAGES[replyLang]?.nativeLabel || replyLang;
+          log(`Backend Answer: "${resp.answer}"`);
 
-            await speak(resp.answer, currentLang, {
-              onTierSelect: (tier) => {
-                chosenTier = tier;
-                const tierName = tier === 'edge' ? 'Edge Neural' : tier === 'cloud' ? 'Cloud Telugu Neural' : 'Native';
-                setUIState('speaking', tierName);
-                log(`TTS Engine Selected: ${tier === 'cloud' ? 'Cloud TTS API (Direct)' : tier === 'edge' ? 'Edge TTS Proxy (Tier 2)' : 'Native Web Speech (Tier 1)'}`);
-              },
-              onEnd: () => {
-                setUIState('idle');
-                log('Speech playback completed.');
-              },
-              onError: (err) => {
-                setUIState('idle');
-                alertBox.style.display = 'flex';
-                alertText.textContent = err.message;
-                log(`TTS Error: ${err.message}`);
-              }
-            });
-          } catch (err) {
-            setUIState('idle');
-            alertBox.style.display = 'flex';
-            alertText.textContent = err.message;
-            log(`Ask Error: ${err.message}`);
-          }
-        },
-        onError: (err) => {
+          turnAnswer.style.display = 'block';
+          const labelSpan = turnAnswer.querySelector('.turn-label span');
+          if (labelSpan) labelSpan.textContent = `WeatherGPT (${langLabel}):`;
+          textAnswer.textContent = resp.answer;
+
+          setUIState('speaking', 'initializing');
+
+          await speak(resp.answer, replyLang, {
+            onTierSelect: (tier) => {
+              const tierName = tier === 'edge' ? 'Edge Neural' : tier === 'cloud' ? 'Cloud Neural' : 'Native';
+              setUIState('speaking', `${langLabel} · ${tierName}`);
+              log(`TTS Engine: ${tierName} for [${replyLang}]`);
+            },
+            onEnd: () => {
+              setUIState('idle');
+              log('Speech playback completed.');
+            },
+            onError: (err) => {
+              setUIState('idle');
+              alertBox.style.display = 'flex';
+              alertText.textContent = err.message;
+              log(`TTS Error: ${err.message}`);
+            }
+          });
+        } catch (err) {
           setUIState('idle');
           alertBox.style.display = 'flex';
           alertText.textContent = err.message;
-          log(`STT Error: ${err.message}`);
+          log(`Ask Error: ${err.message}`);
+        }
+      }
+
+      /**
+       * Browser STT fallback — used when Gemini is unavailable or fails.
+       * Uses the existing speechToText module with language locked to currentLang.
+       */
+      function startBrowserSTT() {
+        const browserLang = (currentLang === 'auto') ? '' : currentLang; // '' = browser auto-detect
+        log('[Browser STT] Starting fallback...');
+        speechToText.startListening({
+          language: currentLang,
+          onInterim: (interim) => {
+            textQuestion.textContent = interim;
+          },
+          onResult: async (finalText) => {
+            // For browser STT, run heuristic language detection on the transcript if in auto mode
+            const detectedLang = currentLang === 'auto' ? detectLanguage(finalText) : currentLang;
+            await handleTranscript(finalText, detectedLang, 'browser');
+          },
+          onError: (err) => {
+            setUIState('idle');
+            alertBox.style.display = 'flex';
+            alertText.textContent = err.message;
+            log(`Browser STT Error: ${err.message}`);
+          },
+          onEnd: () => {
+            if (currentState === 'listening') {
+              setUIState('idle');
+            }
+          }
+        });
+      }
+
+      /**
+       * Try Gemini STT first.
+       * On failure, automatically fall back to browser STT.
+       */
+      geminiSTT.startRecording({
+        onStart: () => {
+          log('[Gemini STT] Recording started...');
+        },
+        onInterim: (statusMsg) => {
+          textQuestion.textContent = statusMsg;
+        },
+        onResult: async (result) => {
+          // result = { text, language, source: 'gemini' }
+          const effectiveLang = currentLang === 'auto' ? result.language : currentLang;
+          await handleTranscript(result.text, effectiveLang, result.source);
+        },
+        onError: async (err) => {
+          log(`[Gemini STT] Error: ${err.message} — falling back to browser STT`);
+          // Only fall back if we're still in listening state
+          if (currentState === 'listening') {
+            startBrowserSTT();
+          }
         },
         onEnd: () => {
           if (currentState === 'listening') {
@@ -319,6 +384,8 @@
 
     btnStopSpeech.addEventListener('click', () => {
       stopSpeech();
+      geminiSTT.abort();
+      speechToText.stopListening();
       setUIState('idle');
       log('Speech stopped by user.');
     });
