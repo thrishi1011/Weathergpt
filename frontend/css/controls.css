@@ -1,63 +1,24 @@
 /* ==========================================================================
-   WeatherGPT - Controls, Input Bar, Language Pills & Error Toasts
+   WeatherGPT - Controls, Input Bar & Voice
    ========================================================================== */
 
 .chat-controls-wrapper {
-  padding: 1rem 1.5rem 1.25rem 1.5rem;
+  padding: 0.75rem 1.5rem 1rem 1.5rem;
   background: var(--bg-surface);
   backdrop-filter: var(--glass-blur);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
   z-index: 10;
 }
 
-/* Language Selection Row */
-.controls-top-row {
+/* Hint row at bottom: keyboard hint + detected language badge */
+.controls-hint-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.language-selector-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.language-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-right: 0.2rem;
-}
-
-.lang-pill-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  padding: 0.2rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.lang-pill-btn:hover {
-  border-color: var(--accent-cyan);
-  color: var(--text-main);
-}
-
-.lang-pill-btn.active {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  color: #000000;
-  box-shadow: 0 2px 8px var(--accent-cyan-glow);
+  gap: 0.5rem;
 }
 
 .input-hint-text {
@@ -65,11 +26,27 @@
   color: var(--text-dim);
 }
 
-@media (max-width: 640px) {
-  .input-hint-text {
-    display: none;
-  }
+.lang-indicator {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 0.18rem 0.6rem;
+  transition: all 0.2s;
+  user-select: none;
 }
+
+.lang-indicator[data-active="true"] {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+@media (max-width: 640px) {
+  .input-hint-text { display: none; }
+}
+
 
 /* Chat Input Bar Form */
 .input-form-container {

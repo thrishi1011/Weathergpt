@@ -1,52 +1,25 @@
 /**
  * InputBar Component
- * Question input, language selection pills, voice STT hooks, and send button
+ * Clean input bar: textarea + mic button + send button.
+ * Language is auto-detected from voice input or typed script — no manual pills.
  */
 
-import { speechService } from '../services/speech.js';
-
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'te', label: 'తెలుగు' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'ta', label: 'தமிழ்' },
-  { code: 'kn', label: 'ಕನ್ನಡ' }
-];
+import { speechService, detectScriptLanguage } from '../services/speech.js';
 
 export function createInputBar({ onSend, onLanguageChange, onError }) {
   const container = document.createElement('div');
   container.className = 'chat-controls-wrapper';
   container.id = 'chat-controls-area';
 
+  // Default language is English; auto-switches when mic detects Indic script
   let selectedLanguage = 'en';
   let isListening = false;
 
   container.innerHTML = `
-    <!-- Top Row: Language Pills & Keyboard Hints -->
-    <div class="controls-top-row">
-      <div class="language-selector-group" id="language-selector-group">
-        <span class="language-label">Language:</span>
-        ${LANGUAGES.map(lang => `
-          <button 
-            type="button" 
-            class="lang-pill-btn ${lang.code === selectedLanguage ? 'active' : ''}" 
-            data-lang="${lang.code}"
-            id="lang-pill-${lang.code}"
-          >
-            ${lang.label}
-          </button>
-        `).join('')}
-      </div>
-
-      <div class="input-hint-text">
-        Press <strong>Enter</strong> to send • <strong>Shift+Enter</strong> for newline
-      </div>
-    </div>
-
-    <!-- Active Voice Banner -->
+    <!-- Voice Status Banner (hidden when inactive) -->
     <div class="voice-status-bar" id="voice-status-bar">
-      <span>🎙️ Listening... Speak your weather question</span>
-      <div class="voice-wave-indicator">
+      <span id="voice-status-text">🎙️ Listening… speak in any language</span>
+      <div class="voice-wave-indicator" id="voice-wave">
         <div class="wave-bar"></div>
         <div class="wave-bar"></div>
         <div class="wave-bar"></div>
@@ -56,96 +29,76 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
 
     <!-- Main Input Form -->
     <form class="input-form-container" id="chat-input-form">
-      <textarea 
-        id="question-input" 
-        class="question-textarea" 
-        rows="1" 
-        placeholder="Ask anything about the weather (e.g., 'Will it rain tomorrow?')"
+      <textarea
+        id="question-input"
+        class="question-textarea"
+        rows="1"
+        placeholder="Ask anything about weather… or press 🎤 to speak"
         aria-label="Ask weather question"
       ></textarea>
 
       <div class="input-action-buttons">
-        <button 
-          type="button" 
-          id="btn-voice-input" 
-          class="mic-toggle-btn" 
-          title="Voice input (Speech to text)"
+        <button
+          type="button"
+          id="btn-voice-input"
+          class="mic-toggle-btn"
+          title="Voice input — speak in any language"
           aria-label="Voice input"
         >
           🎤
         </button>
 
-        <button 
-          type="submit" 
-          id="btn-send-query" 
-          class="send-query-btn" 
-          title="Send query"
+        <button
+          type="submit"
+          id="btn-send-query"
+          class="send-query-btn"
+          title="Send"
           aria-label="Send query"
         >
           ➤
         </button>
       </div>
     </form>
+
+    <!-- Keyboard hint row -->
+    <div class="controls-hint-row">
+      <span class="input-hint-text">Press <strong>Enter</strong> to send • <strong>Shift+Enter</strong> for newline</span>
+      <span class="lang-indicator" id="lang-indicator" title="Detected language">🌐 English</span>
+    </div>
   `;
 
-  const form = container.querySelector('#chat-input-form');
-  const textarea = container.querySelector('#question-input');
-  const sendBtn = container.querySelector('#btn-send-query');
-  const micBtn = container.querySelector('#btn-voice-input');
-  const voiceBar = container.querySelector('#voice-status-bar');
-  const langGroup = container.querySelector('#language-selector-group');
+  const form       = container.querySelector('#chat-input-form');
+  const textarea   = container.querySelector('#question-input');
+  const sendBtn    = container.querySelector('#btn-send-query');
+  const micBtn     = container.querySelector('#btn-voice-input');
+  const voiceBar   = container.querySelector('#voice-status-bar');
+  const voiceText  = container.querySelector('#voice-status-text');
+  const voiceWave  = container.querySelector('#voice-wave');
+  const langBadge  = container.querySelector('#lang-indicator');
 
-  const PLACEHOLDERS = {
-    'en': "Ask anything about the weather in English (e.g., 'Will it rain today?')",
-    'te': "వాతావరణం గురించి తెలుగులో అడగండి (ఉదా: 'ఈరోజు వర్షం పడుతుందా?')",
-    'hi': "मौसम के बारे में हिन्दी में पूछें (उदा: 'आज बारिश होगी क्या?')",
-    'ta': "வானிலை பற்றி தமிழில் கேளுங்கள் (எ.கா: 'இன்று மழை பெய்யுமா?')",
-    'kn': "ಹವಾಮಾನದ ಬಗ್ಗೆ ಕನ್ನಡದಲ್ಲಿ ಕೇಳಿ (ಉದಾ: 'ಇಂದು ಮಳೆ ಬರುತ್ತದೆಯೇ?')"
+  /** Language display names */
+  const LANG_NAMES = {
+    en: 'English', hi: 'हिन्दी', te: 'తెలుగు', ta: 'தமிழ்',
+    kn: 'ಕನ್ನಡ', ml: 'മലയാളം', bn: 'বাংলা', mr: 'मराठी',
+    gu: 'ગુજરાતી', pa: 'ਪੰਜਾਬੀ', or: 'ଓଡ଼ିଆ', ur: 'اردو',
   };
 
-  function detectScriptLanguage(str) {
-    if (/[\u0C00-\u0C7F]/.test(str)) return 'te';
-    if (/[\u0900-\u097F]/.test(str)) return 'hi';
-    if (/[\u0B80-\u0BFF]/.test(str)) return 'ta';
-    if (/[\u0C80-\u0CFF]/.test(str)) return 'kn';
-    if (/[\u0980-\u09FF]/.test(str)) return 'bn';
-    if (/[\u0D00-\u0D7F]/.test(str)) return 'ml';
-    return null;
-  }
-
-  function setActiveLanguage(lang) {
+  function setLanguage(lang) {
+    if (!lang || lang === selectedLanguage) return;
     selectedLanguage = lang;
-    langGroup.querySelectorAll('.lang-pill-btn').forEach(b => {
-      if (b.dataset.lang === lang) {
-        b.classList.add('active');
-      } else {
-        b.classList.remove('active');
-      }
-    });
-    textarea.placeholder = PLACEHOLDERS[lang] || PLACEHOLDERS['en'];
-    if (onLanguageChange) onLanguageChange(selectedLanguage);
+    langBadge.textContent = '🌐 ' + (LANG_NAMES[lang] || lang.toUpperCase());
+    if (onLanguageChange) onLanguageChange(lang);
   }
 
-  // Auto-resize textarea & detect language script
+  // Auto-resize textarea and detect language from typed script
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-
     const detected = detectScriptLanguage(textarea.value);
-    if (detected && detected !== selectedLanguage) {
-      setActiveLanguage(detected);
-    }
+    if (detected) setLanguage(detected);
   });
 
-  // Language switch
-  langGroup.addEventListener('click', (e) => {
-    const btn = e.target.closest('.lang-pill-btn');
-    if (btn) {
-      setActiveLanguage(btn.dataset.lang);
-    }
-  });
-
-  // Keyboard Enter to submit
+  // Enter to submit (Shift+Enter = newline)
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -153,7 +106,6 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
     }
   });
 
-  // Form submit
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     submitQuery();
@@ -163,71 +115,52 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
     const text = textarea.value.trim();
     if (!text) return;
 
-    if (isListening) {
-      speechService.stopListening();
-    }
+    if (isListening) speechService.stopListening();
 
-    // Auto-detect language from question text if native script is typed, else use active pill
+    // Final language check from typed content
     const detected = detectScriptLanguage(text);
-    const finalLang = detected || selectedLanguage || 'en';
-    if (detected && detected !== selectedLanguage) {
-      setActiveLanguage(detected);
-    }
+    if (detected) setLanguage(detected);
+
+    const langToSend = selectedLanguage || 'en';
 
     textarea.value = '';
     textarea.style.height = 'auto';
 
-    if (onSend) {
-      onSend({ question: text, language: finalLang });
-    }
+    if (onSend) onSend({ question: text, language: langToSend });
   }
 
-  // Voice Input (Speech-to-Text)
+  // ──────────────────────────────────────────────────────────────────────
+  // Voice Input
+  // ──────────────────────────────────────────────────────────────────────
   micBtn.addEventListener('click', async () => {
+    // If already listening → stop
     if (isListening) {
       speechService.stopListening();
+      resetVoiceUI();
       return;
     }
 
+    // Activate mic UI immediately so user gets feedback
+    isListening = true;
     micBtn.classList.add('listening');
     voiceBar.classList.add('active');
+    voiceText.textContent = '🎙️ Listening… speak in any language';
+    voiceWave.style.display = '';
 
     const started = await speechService.startListening({
-      language: selectedLanguage,
+
       onTranscript: (transcript) => {
+        // Live-stream transcript into textarea as user speaks
         textarea.value = transcript;
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-        const detected = detectScriptLanguage(transcript);
-        if (detected && detected !== selectedLanguage) {
-          setActiveLanguage(detected);
-        }
       },
-      onPauseComplete: (finalTranscript) => {
-        textarea.value = finalTranscript;
-        textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-        textarea.focus();
-        try {
-          textarea.setSelectionRange(finalTranscript.length, finalTranscript.length);
-        } catch (_) {}
 
-        // Visual indicator: Voice input auto-typed after 3-4s pause and is ready to send
-        voiceBar.classList.add('ready');
-        voiceBar.innerHTML = `<span>✅ Voice captured! Ready to send — Press <strong>Enter</strong> or click <strong>➤</strong></span>`;
-        setTimeout(() => {
-          voiceBar.classList.remove('ready', 'active');
-          voiceBar.innerHTML = `
-            <span>🎙️ Listening... Speak your weather question</span>
-            <div class="voice-wave-indicator">
-              <div class="wave-bar"></div>
-              <div class="wave-bar"></div>
-              <div class="wave-bar"></div>
-              <div class="wave-bar"></div>
-            </div>
-          `;
-        }, 4000);
+      onLanguageDetect: (lang) => {
+        // Update language silently as voice reveals the script
+        setLanguage(lang);
       },
+
       onListeningChange: (listening) => {
         isListening = listening;
         if (listening) {
@@ -235,42 +168,61 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
           voiceBar.classList.add('active');
         } else {
           micBtn.classList.remove('listening');
-          voiceBar.classList.remove('active');
         }
       },
-      onError: (errMsg) => {
-        isListening = false;
+
+      onPauseComplete: (finalTranscript, detectedLang) => {
+        // Auto-type the final captured text
+        textarea.value = finalTranscript;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        textarea.focus();
+        try { textarea.setSelectionRange(finalTranscript.length, finalTranscript.length); } catch (_) {}
+
+        // Update language from detected script
+        if (detectedLang) setLanguage(detectedLang);
+
+        // Show "ready to send" state
         micBtn.classList.remove('listening');
+        voiceBar.classList.add('ready');
         voiceBar.classList.remove('active');
+        voiceWave.style.display = 'none';
+        voiceText.textContent = '✅ Voice captured — press Enter or ➤ to send';
+
+        // Auto-hide banner after 5 seconds
+        setTimeout(() => {
+          resetVoiceUI();
+        }, 5000);
+      },
+
+      onError: (errMsg) => {
+        resetVoiceUI();
         if (onError) onError(errMsg);
-      }
+      },
     });
 
     if (!started) {
-      isListening = false;
-      micBtn.classList.remove('listening');
-      voiceBar.classList.remove('active');
+      resetVoiceUI();
     }
   });
 
+  function resetVoiceUI() {
+    isListening = false;
+    micBtn.classList.remove('listening');
+    voiceBar.classList.remove('active', 'ready');
+    voiceText.textContent = '🎙️ Listening… speak in any language';
+    voiceWave.style.display = '';
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
   return {
     element: container,
-    setInputValue: (val) => {
-      textarea.value = val;
-      textarea.focus();
-    },
+    setInputValue: (val) => { textarea.value = val; textarea.focus(); },
     getLanguage: () => selectedLanguage,
-    setLanguage: (lang) => {
-      selectedLanguage = lang;
-      const btn = langGroup.querySelector(`[data-lang="${lang}"]`);
-      if (btn) {
-        langGroup.querySelectorAll('.lang-pill-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      }
-    },
+    setLanguage,
     setDisabled: (disabled) => {
       textarea.disabled = disabled;
-      sendBtn.disabled = disabled;
-    }
+      sendBtn.disabled  = disabled;
+    },
   };
 }
