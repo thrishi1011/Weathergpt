@@ -1,41 +1,55 @@
 /**
  * WeatherGPT Speech Service
- * Speech-to-Text (STT) with auto language detection and Neural TTS.
+ * Speech-to-Text (STT) with auto language detection and Neural Indic TTS.
  *
  * Key behaviours:
- *  - Mic stays open until 3.5 seconds of silence (then auto-types into input)
- *  - Auto-detects spoken language from Unicode script in the transcript
- *  - Restarts recognition automatically if Chrome ends the session early (localhost quirk)
- *  - Neural Indic TTS via /api/tts backend (Hindi, Telugu, Tamil, Kannada…)
+ *  - Pressing mic immediately listens and auto-types into the input box in real-time
+ *  - Auto-detects spoken language (Telugu, Hindi, English, etc.) from Unicode scripts & transliterations
+ *  - Captures single/multi-phrase utterances cleanly without crashing or overlapping sessions
+ *  - Auto-finalizes after ~3.5 seconds of silence or when user presses send
+ *  - Neural Indic TTS via /api/tts backend (Hindi, Telugu, Tamil, Kannada, English…)
  */
 
-// BCP-47 language codes used for SpeechRecognition.lang
-// We start with 'en-IN' so Chrome picks up accented Indian English by default
-// but we also accept speech in any language and detect it post-fact
-const STT_LANG = 'en-IN';   // broad locale — Chrome still recognises Hindi/Telugu words in this mode
+// BCP-47 language codes for SpeechRecognition
+export const STT_LANG_MAP = {
+  en: 'en-IN',
+  te: 'te-IN',
+  hi: 'hi-IN',
+  ta: 'ta-IN',
+  kn: 'kn-IN',
+  ml: 'ml-IN',
+  bn: 'bn-IN',
+  mr: 'mr-IN',
+  gu: 'gu-IN',
+  pa: 'pa-IN',
+  or: 'or-IN',
+  ur: 'ur-PK',
+};
 
 // Map from 2-letter code to BCP-47 for TTS
-const TTS_LANG_MAP = {
-  'en': 'en-IN',
-  'te': 'te-IN',
-  'hi': 'hi-IN',
-  'ta': 'ta-IN',
-  'kn': 'kn-IN',
-  'ml': 'ml-IN',
-  'bn': 'bn-IN',
-  'mr': 'mr-IN',
-  'gu': 'gu-IN',
-  'pa': 'pa-IN',
-  'or': 'or-IN',
-  'ur': 'ur-PK',
+export const TTS_LANG_MAP = {
+  en: 'en-IN',
+  te: 'te-IN',
+  hi: 'hi-IN',
+  ta: 'ta-IN',
+  kn: 'kn-IN',
+  ml: 'ml-IN',
+  bn: 'bn-IN',
+  mr: 'mr-IN',
+  gu: 'gu-IN',
+  pa: 'pa-IN',
+  or: 'or-IN',
+  ur: 'ur-PK',
 };
 
 /**
- * Detect the written script / language from Unicode codepoints.
- * Returns a 2-letter ISO code, or 'en' as default.
+ * Detect the written script / language from Unicode codepoints & common Indian transliteration words.
+ * Returns a 2-letter ISO code: 'te', 'hi', 'en', etc.
  */
 export function detectScriptLanguage(str) {
   if (!str) return 'en';
+
+  // 1. Unicode script detection (high confidence)
   if (/[\u0C00-\u0C7F]/.test(str)) return 'te';   // Telugu
   if (/[\u0900-\u097F]/.test(str)) return 'hi';   // Devanagari (Hindi/Marathi)
   if (/[\u0B80-\u0BFF]/.test(str)) return 'ta';   // Tamil
@@ -46,24 +60,35 @@ export function detectScriptLanguage(str) {
   if (/[\u0A00-\u0A7F]/.test(str)) return 'pa';   // Punjabi (Gurmukhi)
   if (/[\u0B00-\u0B7F]/.test(str)) return 'or';   // Odia
   if (/[\u0600-\u06FF]/.test(str)) return 'ur';   // Urdu/Arabic
+
+  // 2. Transliteration / Romanized keyword detection
+  const lower = str.toLowerCase();
+  const teluguPatterns = /\b(varsham|paduthunda|padtunda|eroju|repu|ninna|ela|undhi|undha|vathavaranam|raithu|polam|pantalu|gali|chali|yela|telugu|cheppu)\b/i;
+  const hindiPatterns = /\b(mausam|kaisa|barish|hogi|aaj|kal|kisan|fasal|tapman|hawa|garmi|sardi|kya|batao|hoga|rahega|hindi|bataiye)\b/i;
+
+  if (teluguPatterns.test(lower)) return 'te';
+  if (hindiPatterns.test(lower)) return 'hi';
+
   return 'en';
 }
 
 class SpeechService {
   constructor() {
-    this.recognition     = null;
-    this.isListening     = false;
-    this.isSpeaking      = false;
-    this.currentAudio    = null;
-    this.currentUtterance = null;
+    this.recognition       = null;
+    this.isListening       = false;
+    this.isSpeaking        = false;
+    this.currentAudio      = null;
+    this.currentUtterance  = null;
     this.onListeningChange = null;
-    this.onTranscript    = null;
-    this.onLanguageDetect = null;   // NEW: fires when language is detected from voice
-    this.onPauseComplete = null;
-    this.onError         = null;
-    this.silenceTimeout  = null;
-    this._accumulatedFinal = '';
-    this._shouldKeepListening = false;  // controls the keep-alive restart loop
+    this.onTranscript      = null;
+    this.onLanguageDetect  = null;
+    this.onPauseComplete   = null;
+    this.onError           = null;
+    this.silenceTimeout    = null;
+    this.currentText       = '';
+    this.activeLang        = 'en-IN';
+    this._restartTimer     = null;
+    this._allowRestart     = false;
   }
 
   isSttSupported() {
@@ -77,213 +102,259 @@ class SpeechService {
   }
 
   /**
-   * Start listening — stays open until 3.5 s of silence after any speech.
+   * Start listening to voice input and auto-type into the target UI.
    *
    * @param {Object} opts
-   * @param {Function} opts.onTranscript      - called with live transcript string while speaking
-   * @param {Function} opts.onLanguageDetect  - called with detected 2-letter lang code
-   * @param {Function} opts.onListeningChange - called with true/false
-   * @param {Function} opts.onPauseComplete   - called with final transcript after silence
-   * @param {Function} opts.onError           - called with user-friendly error string
+   * @param {string}   [opts.language='en']     - 2-letter lang code ('en', 'te', 'hi'...)
+   * @param {Function} opts.onTranscript        - called with live text while speaking
+   * @param {Function} opts.onLanguageDetect    - called when language is detected
+   * @param {Function} opts.onListeningChange   - called with boolean
+   * @param {Function} opts.onPauseComplete     - called with (finalTranscript, detectedLang)
+   * @param {Function} opts.onError             - called with friendly error message
    */
-  async startListening({ onTranscript, onLanguageDetect, onListeningChange, onPauseComplete, onError }) {
+  startListening({ language = 'en', onTranscript, onLanguageDetect, onListeningChange, onPauseComplete, onError } = {}) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      if (onError) onError('Speech recognition is not supported. Please use Google Chrome or Microsoft Edge.');
+      if (onError) onError('Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.');
       return false;
     }
 
+    // Stop any existing recognition cleanly
     if (this.isListening) {
       this.stopListening();
-      return false;
     }
 
-    // Stop any ongoing TTS before recording
+    // Stop ongoing TTS before listening
     this.stopSpeaking();
 
-    // Request mic permission first — ensures hardware is ready before recognition starts
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop());
-      }
-    } catch (permErr) {
-      if (onError) onError('Microphone access denied. Please allow microphone in your browser address bar and try again.');
-      return false;
+    // Store callbacks
+    this.onTranscript      = onTranscript;
+    this.onLanguageDetect  = onLanguageDetect;
+    this.onListeningChange = onListeningChange;
+    this.onPauseComplete   = onPauseComplete;
+    this.onError           = onError;
+
+    this.currentText       = '';
+    this.isListening       = true;
+    this._allowRestart     = true;
+    this.activeLang        = STT_LANG_MAP[language] || 'en-IN';
+
+    if (this.onListeningChange) {
+      this.onListeningChange(true);
     }
 
-    // Store callbacks
-    this.onTranscript     = onTranscript;
-    this.onLanguageDetect = onLanguageDetect;
-    this.onListeningChange = onListeningChange;
-    this.onPauseComplete  = onPauseComplete;
-    this.onError          = onError;
-
-    // Reset state
-    this._accumulatedFinal    = '';
-    this._shouldKeepListening = true;
-    this.isListening          = true;
-    if (onListeningChange) onListeningChange(true);
-
-    // Start the recognition session (will auto-restart on early end)
-    this._startSession(SpeechRecognition);
+    this._spawnRecognition(SpeechRecognition);
     return true;
   }
 
-  /** Internal: create and start one SpeechRecognition session */
-  _startSession(SpeechRecognition) {
-    if (!this._shouldKeepListening) return;
+  /** Change language on the fly while listening */
+  setLanguage(language) {
+    const newLang = STT_LANG_MAP[language] || 'en-IN';
+    if (this.activeLang === newLang) return;
+    this.activeLang = newLang;
+    if (this.isListening) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        this._spawnRecognition(SpeechRecognition);
+      }
+    }
+  }
 
+  /** Internal: spawn a clean SpeechRecognition instance */
+  _spawnRecognition(SpeechRecognition) {
+    if (!this.isListening) return;
+
+    // Clean up any previous recognition instance completely
     if (this.recognition) {
-      try { this.recognition.abort(); } catch (_) {}
+      const old = this.recognition;
       this.recognition = null;
+      old.onstart = null;
+      old.onresult = null;
+      old.onerror = null;
+      old.onend = null;
+      try { old.abort(); } catch (_) {}
     }
 
     const rec = new SpeechRecognition();
-    // continuous=false is more reliable on localhost (avoids network socket errors).
-    // We compensate by auto-restarting in onend until silence detected.
-    rec.continuous      = false;
-    rec.interimResults  = true;
+    rec.continuous      = false; // single utterance per session avoids localhost socket timeouts
+    rec.interimResults  = true;  // delivers live speech as the user speaks!
     rec.maxAlternatives = 1;
-    rec.lang            = STT_LANG;
+    rec.lang            = this.activeLang;
+    this.recognition    = rec;
 
-    this.recognition = rec;
-    const SILENCE_MS = 3500;
+    let sessionFinal = '';
+    let sessionInterim = '';
 
-    const resetSilenceTimer = (text) => {
+    const resetSilence = () => {
       if (this.silenceTimeout) {
         clearTimeout(this.silenceTimeout);
         this.silenceTimeout = null;
       }
-      if (!text || !text.trim()) return;
-
       this.silenceTimeout = setTimeout(() => {
-        console.log('[Speech] Silence detected. Finalising transcript.');
-        this._shouldKeepListening = false;
+        console.log('[Speech] 3.5s pause detected. Finalizing transcript.');
+        this._allowRestart = false;
+        const textToFinalize = this.currentText.trim();
         this.stopListening();
-        const finalText = this._accumulatedFinal.trim();
-        if (finalText && this.onPauseComplete) {
-          this.onPauseComplete(finalText, detectScriptLanguage(finalText));
+        if (textToFinalize && this.onPauseComplete) {
+          const detected = detectScriptLanguage(textToFinalize);
+          this.onPauseComplete(textToFinalize, detected);
         }
-      }, SILENCE_MS);
+      }, 3500);
+    };
+
+    rec.onstart = () => {
+      console.log(`[Speech] Microphone listening started (language: ${rec.lang})`);
     };
 
     rec.onresult = (event) => {
-      let interim = '';
+      sessionInterim = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          this._accumulatedFinal += result[0].transcript + ' ';
+        const item = event.results[i];
+        if (item.isFinal) {
+          sessionFinal += item[0].transcript + ' ';
         } else {
-          interim += result[0].transcript;
+          sessionInterim += item[0].transcript;
         }
       }
 
-      const fullText = (this._accumulatedFinal + interim).trim();
-      if (fullText) {
-        // Live transcript → update textarea immediately
-        if (this.onTranscript) this.onTranscript(fullText);
+      // Combine previous speech + this session's speech
+      const combined = (this.currentText ? this.currentText + ' ' : '') + sessionFinal + sessionInterim;
+      const clean = combined.replace(/\s+/g, ' ').trim();
 
-        // Detect language from script and notify
-        const lang = detectScriptLanguage(fullText);
-        if (this.onLanguageDetect) this.onLanguageDetect(lang);
+      if (clean) {
+        // Auto-type directly into input bar in real time!
+        if (this.onTranscript) {
+          this.onTranscript(clean);
+        }
 
-        // Restart silence timer
-        resetSilenceTimer(fullText);
+        // Auto-detect language
+        const detected = detectScriptLanguage(clean);
+        if (detected && this.onLanguageDetect) {
+          this.onLanguageDetect(detected);
+        }
+
+        // Reset the silence pause timer
+        resetSilence();
       }
     };
 
     rec.onerror = (event) => {
       console.warn('[Speech] Recognition error:', event.error);
 
-      // If we have captured text, treat any error as a graceful end
-      if (this._accumulatedFinal.trim()) {
-        if (this.silenceTimeout) { clearTimeout(this.silenceTimeout); this.silenceTimeout = null; }
-        this._shouldKeepListening = false;
-        const finalText = this._accumulatedFinal.trim();
-        this.isListening = false;
-        if (this.onListeningChange) this.onListeningChange(false);
+      // Benign non-errors (silence or aborted by user)
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return;
+      }
+
+      // If user has already spoken text, preserve it and finalize cleanly!
+      const captured = (this.currentText + ' ' + sessionFinal + ' ' + sessionInterim).trim();
+      if (captured) {
+        this._allowRestart = false;
+        this.stopListening();
         if (this.onPauseComplete) {
-          this.onPauseComplete(finalText, detectScriptLanguage(finalText));
+          this.onPauseComplete(captured, detectScriptLanguage(captured));
         }
         return;
       }
 
-      // Ignore benign abort/no-speech — let onend handle restart
-      if (event.error === 'aborted' || event.error === 'no-speech') return;
-
-      // Network error on localhost — restart quietly after short delay
+      // Network error on localhost (Google Speech server unreachable)
       if (event.error === 'network') {
-        console.log('[Speech] Network error on STT — restarting session...');
-        setTimeout(() => this._startSession(SpeechRecognition), 300);
+        console.warn('[Speech] Network error connecting to speech recognition server.');
+        this._allowRestart = false;
+        this.stopListening();
+        if (this.onError) {
+          this.onError('Speech network service unreachable. Please ensure internet access or type your question.');
+        }
         return;
       }
 
-      // Real errors — surface to user
-      this._shouldKeepListening = false;
-      this.isListening = false;
-      if (this.silenceTimeout) { clearTimeout(this.silenceTimeout); this.silenceTimeout = null; }
-      if (this.onListeningChange) this.onListeningChange(false);
-
+      // Permission or hardware errors
+      this._allowRestart = false;
+      this.stopListening();
       let msg = 'Voice input error. Please try again.';
       if (event.error === 'not-allowed' || event.error === 'permission-denied') {
         msg = 'Microphone permission denied. Please allow microphone access in your browser.';
       } else if (event.error === 'audio-capture') {
-        msg = 'No microphone detected. Please connect a microphone and try again.';
+        msg = 'No microphone detected or microphone is currently in use.';
       }
-      if (this.onError) this.onError(msg);
+      if (this.onError) {
+        this.onError(msg);
+      }
     };
 
     rec.onend = () => {
-      // If silence timer already fired, we're done
-      if (!this._shouldKeepListening) {
-        // Ensure state is clean
+      // Accumulate any final text from this session
+      if (sessionFinal.trim()) {
+        this.currentText = (this.currentText ? this.currentText + ' ' : '') + sessionFinal.trim();
+        this.currentText = this.currentText.trim();
+      }
+
+      // If finished or stopped listening, close down cleanly
+      if (!this.isListening || !this._allowRestart) {
         if (this.isListening) {
-          this.isListening = false;
-          if (this.onListeningChange) this.onListeningChange(false);
+          this.stopListening();
         }
         return;
       }
 
-      // Still in listening mode → restart for another utterance
-      // (Chrome ends a non-continuous session after each pause)
-      if (this._accumulatedFinal.trim()) {
-        // Already have text — restart so user can keep talking
-        console.log('[Speech] Session ended mid-speech. Restarting for continued input...');
-        setTimeout(() => this._startSession(SpeechRecognition), 100);
-      } else {
-        // Nothing captured yet — restart to wait for speech
-        setTimeout(() => this._startSession(SpeechRecognition), 100);
-      }
+      // If session ended naturally (pause in speech) and we're still listening,
+      // restart cleanly after 150ms to allow multi-sentence speaking
+      clearTimeout(this._restartTimer);
+      this._restartTimer = setTimeout(() => {
+        if (this.isListening && this._allowRestart) {
+          this._spawnRecognition(SpeechRecognition);
+        }
+      }, 150);
     };
 
     try {
       rec.start();
     } catch (err) {
-      console.error('[Speech] Could not start recognition:', err);
-      if (this.onError) this.onError('Could not start voice input. Please click the mic button again.');
-      this._shouldKeepListening = false;
-      this.isListening = false;
-      if (this.onListeningChange) this.onListeningChange(false);
+      console.error('[Speech] Failed to start recognition:', err);
+      const captured = this.currentText.trim();
+      if (captured && this.onPauseComplete) {
+        this.onPauseComplete(captured, detectScriptLanguage(captured));
+      } else if (this.onError) {
+        this.onError('Failed to start microphone. Please click the mic button again.');
+      }
+      this.stopListening();
     }
   }
 
+  /**
+   * Stop listening and finalize any captured speech.
+   */
   stopListening() {
-    this._shouldKeepListening = false;
+    this._allowRestart = false;
+    this.isListening   = false;
+
+    if (this._restartTimer) {
+      clearTimeout(this._restartTimer);
+      this._restartTimer = null;
+    }
     if (this.silenceTimeout) {
       clearTimeout(this.silenceTimeout);
       this.silenceTimeout = null;
     }
+
     if (this.recognition) {
-      try { this.recognition.stop(); } catch (_) {}
+      const rec = this.recognition;
+      this.recognition = null;
+      rec.onstart  = null;
+      rec.onresult = null;
+      rec.onerror  = null;
+      rec.onend    = null;
+      try { rec.abort(); } catch (_) {}
     }
-    this.isListening = false;
-    if (this.onListeningChange) this.onListeningChange(false);
+
+    if (this.onListeningChange) {
+      this.onListeningChange(false);
+    }
   }
 
   /**
    * Speak text using Neural TTS (backend /api/tts) with Indic language support.
-   * Falls back to browser SpeechSynthesis if the backend endpoint fails.
+   * Falls back to browser SpeechSynthesis if backend TTS fails.
    */
   async speakText({ text, language = 'en', onStart, onEnd, onError }) {
     this.stopSpeaking();

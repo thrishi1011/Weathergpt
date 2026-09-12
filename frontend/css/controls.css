@@ -27,20 +27,26 @@
 }
 
 .lang-indicator {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-dim);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border-subtle);
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   border-radius: var(--radius-full);
-  padding: 0.18rem 0.6rem;
+  padding: 0.2rem 0.65rem;
   transition: all 0.2s;
   user-select: none;
+  cursor: pointer;
 }
 
-.lang-indicator[data-active="true"] {
+.lang-indicator:hover {
+  background: rgba(6, 182, 212, 0.16);
   border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+}
+
+.lang-indicator:active {
+  transform: scale(0.97);
 }
 
 @media (max-width: 640px) {
