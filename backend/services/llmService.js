@@ -38,11 +38,14 @@ async function generateAnswer({ question, weather, imdAlert, language = 'en' }) 
   // Attempt 1: Call LLM HTTP service if running
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     const res = await fetch(LLM_SERVICE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Connection': 'close'
+      },
       body: JSON.stringify(payload),
       signal: controller.signal
     });

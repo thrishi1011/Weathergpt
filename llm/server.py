@@ -15,11 +15,14 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s in %
 logger = logging.getLogger("weathergpt.llm.server")
 
 class LLMRequestHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def _send_json(self, status: int, payload: Dict[str, Any]):
         response_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(response_bytes)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(response_bytes)
 

@@ -140,9 +140,22 @@ class ResponseValidator:
         answer_numbers = cls.extract_numbers_from_text(answer_text)
         payload_numbers = cls.extract_numbers_from_payload(input_payload)
 
-        # Allow benign conversational numbers (e.g. 1st, 24 hours, 48 hours)
-        benign_numbers = {1.0, 2.0, 3.0, 7.0, 24.0, 48.0}
-        unaccounted_numbers = answer_numbers - payload_numbers - benign_numbers
+        # Allow benign conversational time/duration/counting numbers (e.g. hours, days, percentages)
+        benign_numbers = {
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            14.0, 15.0, 20.0, 24.0, 30.0, 45.0, 48.0, 50.0, 60.0, 72.0
+        }
+
+        # Include rounded variants of payload numbers (e.g. 27.8 -> 28)
+        rounded_payload = {round(n) for n in payload_numbers} | {float(int(n)) for n in payload_numbers}
+        all_allowed = payload_numbers | rounded_payload | benign_numbers
+
+        # Check for any truly unaccounted numbers (not close to any allowed number within 0.6)
+        unaccounted_numbers = set()
+        for num in answer_numbers:
+            if num not in all_allowed:
+                if not any(abs(num - pn) <= 0.6 for pn in payload_numbers):
+                    unaccounted_numbers.add(num)
 
         if unaccounted_numbers:
             raise ValidationError(
