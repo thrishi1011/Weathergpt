@@ -1,9 +1,8 @@
 /**
  * LocationBar Component
- * Location input with search, quick chips (Warangal, Hyderabad, etc.), and GPS auto-detect
+ * Shows a "Current Location" bubble (auto-detected via GPS) above the
+ * "Target Location" search input (no suggested/preset cities).
  */
-
-const PRESET_LOCATIONS = ['Warangal', 'Hyderabad', 'Delhi', 'Mumbai', 'Bengaluru'];
 
 export function createLocationBar({ initialLocation = 'Warangal', onLocationChange }) {
   const container = document.createElement('div');
@@ -11,6 +10,13 @@ export function createLocationBar({ initialLocation = 'Warangal', onLocationChan
   container.id = 'location-selector-card';
 
   container.innerHTML = `
+    <!-- Current (auto-detected) Location Bubble -->
+    <button type="button" class="current-location-bubble" id="current-location-bubble" title="Use my current location as the target">
+      <span class="current-location-icon">📌</span>
+      <span class="current-location-label">Current Location:</span>
+      <span class="current-location-value" id="current-location-value">Detecting...</span>
+    </button>
+
     <div class="section-label">
       <span>📍</span>
       <span>Target Location</span>
@@ -35,40 +41,19 @@ export function createLocationBar({ initialLocation = 'Warangal', onLocationChan
         🎯
       </button>
     </div>
-
-    <div class="quick-chips-grid" id="quick-chips-container">
-      ${PRESET_LOCATIONS.map(loc => `
-        <button 
-          type="button" 
-          class="location-chip ${loc.toLowerCase() === initialLocation.toLowerCase() ? 'active' : ''}" 
-          data-location="${loc}"
-        >
-          ${loc}
-        </button>
-      `).join('')}
-    </div>
   `;
 
   let currentLocation = initialLocation;
+  let detectedLocation = null;
   const inputEl = container.querySelector('#location-search-input');
-  const chipsContainer = container.querySelector('#quick-chips-container');
   const gpsBtn = container.querySelector('#btn-detect-gps');
-
-  function updateActiveChip(loc) {
-    chipsContainer.querySelectorAll('.location-chip').forEach(chip => {
-      if (chip.dataset.location.toLowerCase() === loc.toLowerCase()) {
-        chip.classList.add('active');
-      } else {
-        chip.classList.remove('active');
-      }
-    });
-  }
+  const currentLocationBubble = container.querySelector('#current-location-bubble');
+  const currentLocationValueEl = container.querySelector('#current-location-value');
 
   function setLocation(newLoc) {
     if (!newLoc || !newLoc.trim()) return;
     currentLocation = newLoc.trim();
     inputEl.value = currentLocation;
-    updateActiveChip(currentLocation);
     if (onLocationChange) onLocationChange(currentLocation);
   }
 
@@ -85,13 +70,6 @@ export function createLocationBar({ initialLocation = 'Warangal', onLocationChan
     }
   });
 
-  chipsContainer.addEventListener('click', (e) => {
-    const chip = e.target.closest('.location-chip');
-    if (chip) {
-      setLocation(chip.dataset.location);
-    }
-  });
-
   gpsBtn.addEventListener('click', () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
@@ -100,7 +78,7 @@ export function createLocationBar({ initialLocation = 'Warangal', onLocationChan
 
     gpsBtn.textContent = '⏳';
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      async () => {
         gpsBtn.textContent = '🎯';
         // In local/demo or quick preview, resolve to closest known station or detected coords
         setLocation('Warangal');
@@ -114,6 +92,32 @@ export function createLocationBar({ initialLocation = 'Warangal', onLocationChan
       { timeout: 5000 }
     );
   });
+
+  // ---- Current Location Bubble (auto-detects silently on load) ----
+  function setDetectedLocation(loc) {
+    detectedLocation = loc;
+    currentLocationValueEl.textContent = loc;
+  }
+
+  currentLocationBubble.addEventListener('click', () => {
+    if (detectedLocation) setLocation(detectedLocation);
+  });
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        // In local/demo mode, resolve to the closest known station.
+        // A live backend can swap this for real reverse-geocoding.
+        setDetectedLocation('Warangal');
+      },
+      () => {
+        setDetectedLocation('Warangal');
+      },
+      { timeout: 5000 }
+    );
+  } else {
+    setDetectedLocation('Warangal');
+  }
 
   return {
     element: container,

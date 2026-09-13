@@ -131,13 +131,74 @@ body::before {
 /* Top App Header */
 .app-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.85rem 1.75rem;
+  flex-direction: column;
   background: var(--bg-surface);
   backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border-subtle);
   z-index: 20;
+}
+
+/* Global Language Section - top strip of the header, present on every screen */
+.header-language-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 1.75rem;
+  background: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+}
+
+.language-bar-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.language-bar-label {
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.language-bar-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.language-bar-pills .lang-pill-btn {
+  padding: 0.28rem 0.75rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.language-bar-pills .lang-pill-btn:hover {
+  border-color: var(--border-glow);
+  color: var(--text-main);
+}
+
+.language-bar-pills .lang-pill-btn.active {
+  background: var(--grad-primary);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
+.header-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  padding: 0.85rem 1.75rem;
 }
 
 .brand-section {
@@ -186,6 +247,29 @@ body::before {
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.header-date-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.header-date-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.header-date-text {
+  letter-spacing: 0.01em;
 }
 
 .header-status-group {
@@ -253,7 +337,7 @@ body::before {
 .main-layout {
   display: grid;
   grid-template-columns: 380px 1fr;
-  height: calc(100vh - 66px);
+  height: 100%;
   overflow: hidden;
   position: relative;
 }
@@ -272,10 +356,19 @@ body::before {
   .main-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
-    height: calc(100dvh - 60px);
+    height: 100%;
     overflow-y: auto;
   }
-  .app-header {
+  .header-main-row {
     padding: 0.65rem 1rem;
+  }
+  .header-language-bar {
+    padding: 0.45rem 1rem;
+  }
+  .header-date-display {
+    order: 3;
+    margin-left: auto;
+    font-size: 0.7rem;
+    padding: 0.3rem 0.65rem;
   }
 }

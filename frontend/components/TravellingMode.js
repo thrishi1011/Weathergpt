@@ -14,18 +14,22 @@ const POPULAR_ROUTES = [
   { origin: 'Bengaluru', dest: 'Mysuru', distance: '144 km', baseCarTime: '2h 30m', trainTime: '1h 45m', flightTime: '40m' }
 ];
 
-export function createTravellingMode({ onBackToModes }) {
+export function createTravellingMode({ onBackToModes, language = 'en' }) {
   const container = document.createElement('div');
   container.className = 'mode-workspace-view';
   container.id = 'travelling-mode-view';
+  // Carried through from the global language section in the Header, so this
+  // mode's future backend-generated advisories respond in the same language
+  // selected everywhere else in the app.
+  container.dataset.language = language;
 
   let currentVehicle = 'car';
 
   container.innerHTML = `
     <div class="workspace-header-bar">
       <div class="header-left">
-        <button type="button" class="btn-back-modes" id="btn-travel-back" title="Back to mode selection">
-          ⬅ Back to Modes
+        <button type="button" class="btn-back-modes" id="btn-travel-back" title="Back to Chat">
+          ⬅ Back to Chat
         </button>
         <div class="mode-active-tag">
           <span class="mode-tag-icon">🚗</span>

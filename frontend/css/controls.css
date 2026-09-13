@@ -13,27 +13,13 @@
   z-index: 10;
 }
 
-/* Language Selection Row */
+/* Keyboard Hint Row (language selection now lives globally in the Header) */
 .controls-top-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-
-.language-selector-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.language-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-right: 0.2rem;
 }
 
 .lang-pill-btn {
@@ -147,16 +133,32 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
+  /* Use the high-contrast main text color (not the fainter muted tone) so the
+     SVG icon below reads clearly against both the dark and light theme. */
+  color: var(--text-main);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.15rem;
   transition: all var(--transition-fast);
   position: relative;
+}
+
+/* The icon is an inline SVG that inherits the button's `color` via
+   stroke="currentColor" - this is what actually keeps it visible in both
+   themes, since a color emoji glyph ignores CSS color entirely. */
+.mic-icon-svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+[data-theme="light"] .mic-toggle-btn {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
 .mic-toggle-btn:hover {

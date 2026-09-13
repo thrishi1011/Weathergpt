@@ -27,16 +27,20 @@ const CROPS = [
   { id: 'wheat', name: 'Wheat (గోధుమ / गेहूँ)', type: 'Rabi Staple' }
 ];
 
-export function createFarmingMode({ onBackToModes }) {
+export function createFarmingMode({ onBackToModes, language = 'en' }) {
   const container = document.createElement('div');
   container.className = 'mode-workspace-view';
   container.id = 'farming-mode-view';
+  // Carried through from the global language section in the Header, so this
+  // mode's future backend-generated advisories respond in the same language
+  // selected everywhere else in the app.
+  container.dataset.language = language;
 
   container.innerHTML = `
     <div class="workspace-header-bar">
       <div class="header-left">
-        <button type="button" class="btn-back-modes" id="btn-farm-back" title="Back to mode selection">
-          ⬅ Back to Modes
+        <button type="button" class="btn-back-modes" id="btn-farm-back" title="Back to Chat">
+          ⬅ Back to Chat
         </button>
         <div class="mode-active-tag">
           <span class="mode-tag-icon">🌾</span>

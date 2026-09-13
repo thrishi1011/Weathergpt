@@ -2,12 +2,18 @@
  * ChatView Component
  * Manages the message stream, speech readout triggers, copy actions,
  * quick starter questions, and humanoid direct response cards with SVG charts.
+ * Mode-switch shortcuts removed — app is chat-only.
+ *
+ * Rows returned by addUserMessage / addAssistantMessage can later be handed
+ * back to updateUserMessage / updateAssistantMessage so that switching the
+ * global language can re-render earlier turns in the new language, in place,
+ * without losing the conversation.
  */
 
 import { speechService } from '../services/speech.js';
 import { ChartEngine } from './ChartEngine.js';
 
-export function createChatView({ onSuggestionClick, onSwitchMode }) {
+export function createChatView({ onSuggestionClick }) {
   const container = document.createElement('div');
   container.className = 'chat-messages-container';
   container.id = 'chat-messages-viewport';
@@ -24,32 +30,22 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
           Ask direct questions about rainfall, storms, or temperature. WeatherGPT provides direct humanoid answers, clear advice on what you can and cannot do, and precise charts.
         </p>
 
-        <!-- Mode Quick Nav Pills -->
-        <div class="empty-modes-nav">
-          <span class="nav-label">Switch to specialized mode:</span>
-          <div class="empty-modes-row">
-            <button type="button" class="empty-mode-btn" data-target="travel">🚗 Travelling Mode</button>
-            <button type="button" class="empty-mode-btn" data-target="farm">🌾 Farming Mode</button>
-            <button type="button" class="empty-mode-btn" data-target="outdoor">⛅ Outdoor Mode</button>
-          </div>
-        </div>
-
         <div class="suggestion-prompts-grid" id="suggestion-prompts">
           <button type="button" class="suggestion-pill-card" data-prompt="Will it rain today?">
             <span class="suggestion-pill-icon">🌧️</span>
-            <span class="suggestion-pill-text">"Will it rain today?"</span>
+            <span class="suggestion-pill-text">Will it rain today?</span>
           </button>
           <button type="button" class="suggestion-pill-card" data-prompt="Will it rain tomorrow?">
             <span class="suggestion-pill-icon">🌦️</span>
-            <span class="suggestion-pill-text">"Will it rain tomorrow?"</span>
+            <span class="suggestion-pill-text">Will it rain tomorrow?</span>
           </button>
           <button type="button" class="suggestion-pill-card" data-prompt="Should I spray pesticide today?">
             <span class="suggestion-pill-icon">🌾</span>
-            <span class="suggestion-pill-text">"Should I spray pesticide today?"</span>
+            <span class="suggestion-pill-text">Should I spray pesticide today?</span>
           </button>
           <button type="button" class="suggestion-pill-card" data-prompt="Show me the 24-hour temperature and rain graph.">
             <span class="suggestion-pill-icon">📊</span>
-            <span class="suggestion-pill-text">"Show 24-hour rain graph"</span>
+            <span class="suggestion-pill-text">Show 24-hour rain graph</span>
           </button>
         </div>
       </div>
@@ -58,12 +54,6 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     container.querySelectorAll('.suggestion-pill-card').forEach(btn => {
       btn.addEventListener('click', () => {
         if (onSuggestionClick) onSuggestionClick(btn.dataset.prompt);
-      });
-    });
-
-    container.querySelectorAll('.empty-mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (onSwitchMode) onSwitchMode(btn.dataset.target);
       });
     });
   }
@@ -84,15 +74,27 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
   }
 
   /**
-   * Add a message sent by the user
+   * Add a message sent by the user. Returns the row element so it can be
+   * passed back to updateUserMessage later (e.g. on a language switch).
    */
   function addUserMessage(text, location = '') {
     clearEmptyStateIfNeeded();
 
-    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('div');
     row.className = 'message-row user-row';
+    row.dataset.timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    row.dataset.location = location || '';
 
+    renderUserRowContent(row, text);
+
+    container.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function renderUserRowContent(row, text) {
+    const timeString = row.dataset.timeString;
+    const location = row.dataset.location;
     row.innerHTML = `
       <div class="message-avatar user-avatar" title="You">👤</div>
       <div class="message-bubble-wrapper">
@@ -104,23 +106,50 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
         </div>
       </div>
     `;
-
-    container.appendChild(row);
-    scrollToBottom();
   }
 
   /**
-   * Add assistant response bubble with Humanoid structuring
+   * Re-render an existing user row with new (e.g. translated) text,
+   * keeping its original timestamp and location.
+   */
+  function updateUserMessage(row, text) {
+    if (!row || !row.isConnected) return;
+    renderUserRowContent(row, text);
+  }
+
+  /**
+   * Add assistant response bubble with Humanoid structuring. Returns the
+   * row element so it can be passed back to updateAssistantMessage later.
    */
   function addAssistantMessage(answerText, language = 'en', isDemo = false, options = {}) {
     clearEmptyStateIfNeeded();
 
-    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('div');
     row.className = 'message-row assistant-row';
+    row.dataset.timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    renderAssistantRowContent(row, answerText, language, isDemo, options);
+
+    container.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  /**
+   * Re-render an existing assistant row with a freshly-fetched answer
+   * (e.g. the same question re-asked in a newly selected language),
+   * keeping its original timestamp.
+   */
+  function updateAssistantMessage(row, answerText, language = 'en', isDemo = false, options = {}) {
+    if (!row || !row.isConnected) return;
+    renderAssistantRowContent(row, answerText, language, isDemo, options);
+  }
+
+  function renderAssistantRowContent(row, answerText, language, isDemo, options) {
+    const timeString = row.dataset.timeString;
 
     // Parse humanoid components if question relates to "rain" or "weather"
-    const isRainQuestion = (answerText || '').toLowerCase().includes('rain') || 
+    const isRainQuestion = (answerText || '').toLowerCase().includes('rain') ||
                            (options.question || '').toLowerCase().includes('rain') ||
                            (options.question || '').toLowerCase().includes('today') ||
                            (options.question || '').toLowerCase().includes('tomorrow');
@@ -139,7 +168,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
         temps: [31, 30, 27, 26, 26, 25]
       });
 
-      speechPlainText = willRain 
+      speechPlainText = willRain
         ? `Yes, it will definitely rain. There is a 78 percent chance of thunderstorm showers, most active between 3:30 PM and 6:00 PM. Hang your laundry early, and avoid highway driving during the afternoon squall.`
         : `No rain is expected today. Skies are clear with pleasant weather.`;
 
@@ -187,7 +216,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
           <!-- Embedded High-Precision SVG Chart -->
           <div class="humanoid-chart-container">
             <div class="chart-caption-bar">
-              <span>📊 Rain Probability & Temperature Curve</span>
+              <span>📊 Rain Probability &amp; Temperature Curve</span>
             </div>
             ${chartHtml}
           </div>
@@ -265,9 +294,6 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
         }
       });
     });
-
-    container.appendChild(row);
-    scrollToBottom();
   }
 
   /**
@@ -288,7 +314,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
-        <span class="typing-text">WeatherGPT is evaluating radar & meteorological data...</span>
+        <span class="typing-text">WeatherGPT is evaluating radar &amp; meteorological data...</span>
       </div>
     `;
 
@@ -307,6 +333,8 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     element: container,
     addUserMessage,
     addAssistantMessage,
+    updateUserMessage,
+    updateAssistantMessage,
     showLoadingState,
     hideLoadingState
   };

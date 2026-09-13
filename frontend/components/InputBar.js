@@ -1,43 +1,28 @@
 /**
  * InputBar Component
- * Question input, language selection pills, voice STT hooks, and send button
+ * Question input, voice STT hooks, and send button.
+ *
+ * NOTE: Language selection used to live here as its own set of pills,
+ * duplicated per mode. It has been replaced by a single global language
+ * section in the Header - this component now just receives the currently
+ * selected language (via the `language` option / `setLanguage()`) and uses
+ * it for speech recognition and for tagging outgoing questions.
  */
 
 import { speechService } from '../services/speech.js';
+import { DEFAULT_LANGUAGE } from '../utils/languages.js';
 
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'te', label: 'తెలుగు' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'ta', label: 'தமிழ்' },
-  { code: 'kn', label: 'ಕನ್ನಡ' }
-];
-
-export function createInputBar({ onSend, onLanguageChange, onError }) {
+export function createInputBar({ onSend, onError, language = DEFAULT_LANGUAGE }) {
   const container = document.createElement('div');
   container.className = 'chat-controls-wrapper';
   container.id = 'chat-controls-area';
 
-  let selectedLanguage = 'en';
+  let selectedLanguage = language;
   let isListening = false;
 
   container.innerHTML = `
-    <!-- Top Row: Language Pills & Keyboard Hints -->
+    <!-- Top Row: Keyboard Hints -->
     <div class="controls-top-row">
-      <div class="language-selector-group" id="language-selector-group">
-        <span class="language-label">Language:</span>
-        ${LANGUAGES.map(lang => `
-          <button 
-            type="button" 
-            class="lang-pill-btn ${lang.code === selectedLanguage ? 'active' : ''}" 
-            data-lang="${lang.code}"
-            id="lang-pill-${lang.code}"
-          >
-            ${lang.label}
-          </button>
-        `).join('')}
-      </div>
-
       <div class="input-hint-text">
         Press <strong>Enter</strong> to send • <strong>Shift+Enter</strong> for newline
       </div>
@@ -72,7 +57,11 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
           title="Voice input (Speech to text)"
           aria-label="Voice input"
         >
-          🎤
+          <svg class="mic-icon-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5.5A3.5 3.5 0 0 0 12 15Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6.5 10.5v1a5.5 5.5 0 0 0 11 0v-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 19.5v2.25M9 21.75h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </button>
 
         <button 
@@ -93,23 +82,11 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   const sendBtn = container.querySelector('#btn-send-query');
   const micBtn = container.querySelector('#btn-voice-input');
   const voiceBar = container.querySelector('#voice-status-bar');
-  const langGroup = container.querySelector('#language-selector-group');
 
   // Auto-resize textarea
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-  });
-
-  // Language switch
-  langGroup.addEventListener('click', (e) => {
-    const btn = e.target.closest('.lang-pill-btn');
-    if (btn) {
-      langGroup.querySelectorAll('.lang-pill-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedLanguage = btn.dataset.lang;
-      if (onLanguageChange) onLanguageChange(selectedLanguage);
-    }
   });
 
   // Keyboard Enter to submit
@@ -183,13 +160,11 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
       textarea.focus();
     },
     getLanguage: () => selectedLanguage,
+    // Called by app.js when the global language section (in the Header)
+    // changes, so this input bar - and any voice input it triggers - stays
+    // in sync without needing its own language controls.
     setLanguage: (lang) => {
       selectedLanguage = lang;
-      const btn = langGroup.querySelector(`[data-lang="${lang}"]`);
-      if (btn) {
-        langGroup.querySelectorAll('.lang-pill-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      }
     },
     setDisabled: (disabled) => {
       textarea.disabled = disabled;

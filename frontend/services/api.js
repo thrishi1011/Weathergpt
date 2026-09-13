@@ -85,6 +85,55 @@ export async function askQuestion({ question, location = 'Warangal', language = 
 }
 
 /**
+ * Best-effort translation of a short piece of free text (e.g. a user's own
+ * previously-typed chat question) into another language, used when the
+ * global language selector is switched mid-conversation.
+ *
+ * There is no dedicated /api/translate endpoint in the contract, so this
+ * reuses /api/ask with an explicit translation instruction. A live backend
+ * (LLM) will translate it properly; with no backend running the request
+ * simply fails and the original text is kept unchanged rather than risking
+ * a wrong guess.
+ */
+const LANGUAGE_NAMES = { en: 'English', te: 'Telugu', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada' };
+
+export async function translateFreeText(text, targetLanguage = 'en') {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return text;
+
+  const targetName = LANGUAGE_NAMES[targetLanguage] || 'English';
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch('/api/ask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        question: `Translate the following sentence into ${targetName}. Reply with ONLY the translated sentence, no quotes, no extra text: ${trimmed}`,
+        location: 'Warangal',
+        language: targetLanguage
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+
+    const data = await response.json();
+    const translated = (data.answer || '').trim().replace(/^["']|["']$/g, '');
+    return translated || text;
+  } catch (err) {
+    // No live backend available to translate with — keep original wording.
+    return text;
+  }
+}
+
+/**
  * Fetch current weather data and IMD alerts for a location
  * @param {string} location
  * @returns {Promise<Object>}
