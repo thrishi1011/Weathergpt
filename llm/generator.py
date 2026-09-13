@@ -345,4 +345,70 @@ Respond ONLY with valid JSON in this exact structure:
     logger.error(f"All Gemini audio models failed: {last_err}")
     return None
 
+def translate_text_with_gemini(texts, target_language: str = "en") -> Dict[str, Any]:
+    """
+    Translate one text or a batch of texts into the target language using Gemini.
+    Returns translations in native script (Telugu, Hindi, Tamil, Kannada, English, etc.).
+    """
+    load_dotenv_if_present()
+    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    lang_info = normalize_voice_language(target_language)
+    target_name = lang_info.get("name", "English")
+
+    is_single = isinstance(texts, str)
+    items = [texts] if is_single else list(texts)
+
+    if not key or not items:
+        return {"translations": items if not is_single else items[0], "language": target_language}
+
+    prompt = f"""You are a professional weather and general multilingual translator.
+Translate the following array of {len(items)} text string(s) into {target_name} ({lang_info['code']}).
+
+CRITICAL TRANSLATION RULES:
+1. Native Script: For Telugu use Telugu script (e.g. తెలుగు), for Hindi use Devanagari (हिन्दी), for Tamil use தமிழ், for Kannada use ಕನ್ನಡ.
+2. Maintain numbers, temperatures (°C), units (km/h, mm, %), and markdown formatting faithfully.
+3. Natural, fluent translation: do not give transliterated Latin characters.
+4. Output JSON ONLY with this exact schema:
+{{
+  "translations": ["<translated text 1>", "<translated text 2>", ...]
+}}
+
+Texts to translate:
+{json.dumps(items, ensure_ascii=False)}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"response_mime_type": "application/json"}
+    }
+
+    models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
+    for m in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={key}"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                res = json.loads(r.read().decode("utf-8"))
+                text_part = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if text_part.startswith("```"):
+                    text_part = text_part.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                data = json.loads(text_part)
+                translations = data.get("translations", items)
+                return {
+                    "translations": translations[0] if is_single else translations,
+                    "language": target_language,
+                    "language_name": target_name
+                }
+        except Exception as e:
+            logger.warning(f"Translation failed on model {m}: {e}")
+            continue
+
+    return {"translations": items[0] if is_single else items, "language": target_language}
+
+
 

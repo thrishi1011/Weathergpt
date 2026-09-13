@@ -1,93 +1,76 @@
 /**
  * Header Component
- * WeatherGPT Branding, Interactive Mode Switcher, Backend Connectivity status, and Theme Toggle
+ * WeatherGPT Branding, Global Language Selector, Recovery Link, and Theme Toggle.
  */
 
-export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClick, onSwitchMode, onOpenModesHub, onSaveRecoveryLink }) {
+import { LANGUAGES, DEFAULT_LANGUAGE } from '../utils/languages.js';
+
+export function createHeader({
+  currentLanguage = DEFAULT_LANGUAGE,
+  onThemeToggle,
+  onSaveRecoveryLink,
+  onLanguageChange
+}) {
   const header = document.createElement('header');
   header.className = 'app-header';
   header.id = 'app-header';
 
   header.innerHTML = `
-    <div class="brand-section">
-      <div class="brand-logo-badge" id="brand-logo" title="Return to Modes Hub" role="button" tabindex="0">
-        ⚡
-      </div>
-      <div class="brand-info">
-        <h1 class="brand-title" id="brand-heading">WeatherGPT</h1>
-        <span class="brand-subtitle">Agro & Atmospheric Intelligence</span>
+    <!-- Global Language Section: sits at the top -->
+    <div class="header-language-bar" id="header-language-bar">
+      <span class="language-bar-icon">🌐</span>
+      <span class="language-bar-label">Language:</span>
+      <div class="language-bar-pills" id="language-bar-pills" role="group" aria-label="Select app language">
+        ${LANGUAGES.map(lang => `
+          <button
+            type="button"
+            class="lang-pill-btn ${lang.code === currentLanguage ? 'active' : ''}"
+            data-lang="${lang.code}"
+            id="global-lang-pill-${lang.code}"
+          >
+            ${lang.label}
+          </button>
+        `).join('')}
       </div>
     </div>
 
-    <!-- Mode Switcher Navigation Pills -->
-    <nav class="header-mode-nav" id="header-mode-nav" aria-label="Workflow Modes">
-      <button type="button" class="mode-nav-btn ${currentMode === 'travel' ? 'active' : ''}" data-mode="travel" title="Travelling Mode">
-        <span class="nav-icon">🚗</span>
-        <span class="nav-text">Travel</span>
-      </button>
-      <button type="button" class="mode-nav-btn ${currentMode === 'farm' ? 'active' : ''}" data-mode="farm" title="Farming Mode">
-        <span class="nav-icon">🌾</span>
-        <span class="nav-text">Farming</span>
-      </button>
-      <button type="button" class="mode-nav-btn ${currentMode === 'outdoor' ? 'active' : ''}" data-mode="outdoor" title="Outdoor Mode">
-        <span class="nav-icon">⛅</span>
-        <span class="nav-text">Outdoor</span>
-      </button>
-      <button type="button" class="mode-nav-btn ${currentMode === 'chat' ? 'active' : ''}" data-mode="chat" title="General Chat Mode">
-        <span class="nav-icon">💬</span>
-        <span class="nav-text">Chat</span>
-      </button>
-      <button type="button" class="mode-nav-btn btn-hub ${currentMode === 'all' ? 'active' : ''}" data-mode="all" id="btn-open-modes-hub" title="Browse all modes">
-        <span class="nav-icon">🎛️</span>
-        <span class="nav-text">All Modes</span>
-      </button>
-    </nav>
+    <!-- Main Row: Branding, Recovery Link, Theme Toggle -->
+    <div class="header-main-row" id="header-main-row">
+      <div class="brand-section">
+        <div class="brand-logo-badge" id="brand-logo" title="WeatherGPT" role="img" aria-label="WeatherGPT">
+          ⚡
+        </div>
+        <div class="brand-info">
+          <h1 class="brand-title" id="brand-heading">WeatherGPT</h1>
+          <span class="brand-subtitle">Agro &amp; Atmospheric Intelligence</span>
+        </div>
+      </div>
 
-    <div class="header-status-group">
-      <button type="button" class="recovery-link-header-btn" id="header-recovery-link-btn" title="Save recovery link to restore chats if browser data is cleared">
-        🔗 Save recovery link
-      </button>
+      <div class="header-status-group">
+        <button type="button" class="recovery-link-header-btn" id="header-recovery-link-btn" title="Save recovery link to restore chats if browser data is cleared">
+          🔗 Save recovery link
+        </button>
 
-      <button class="connection-pill" id="backend-status-pill" title="Backend connectivity status">
-        <span class="status-dot"></span>
-        <span id="backend-status-text">Checking Backend...</span>
-      </button>
-
-      <button class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle dark/light theme" title="Toggle theme">
-        🌙
-      </button>
+        <button class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle dark/light theme" title="Toggle theme">
+          🌙
+        </button>
+      </div>
     </div>
   `;
 
-  // Logo click returns to Modes Hub
-  const logoBadge = header.querySelector('#brand-logo');
-  logoBadge.addEventListener('click', () => {
-    setActiveMode('all');
-    if (onOpenModesHub) onOpenModesHub();
+  // ---- Global Language Selector ----
+  const languagePillsGroup = header.querySelector('#language-bar-pills');
+  languagePillsGroup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.lang-pill-btn');
+    if (!btn) return;
+    const lang = btn.dataset.lang;
+    setActiveLanguage(lang);
+    if (onLanguageChange) onLanguageChange(lang);
   });
 
-  const hubBtn = header.querySelector('#btn-open-modes-hub');
-  hubBtn.addEventListener('click', () => {
-    setActiveMode('all');
-    if (onOpenModesHub) onOpenModesHub();
-  });
-
-  // Mode Nav Buttons
-  header.querySelectorAll('.mode-nav-btn[data-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const mode = btn.dataset.mode;
-      setActiveMode(mode);
-      if (onSwitchMode) onSwitchMode(mode);
-    });
-  });
-
-  function setActiveMode(mode) {
-    header.querySelectorAll('.mode-nav-btn[data-mode]').forEach(b => {
-      if (b.dataset.mode === mode) {
-        b.classList.add('active');
-      } else {
-        b.classList.remove('active');
-      }
+  function setActiveLanguage(lang) {
+    languagePillsGroup.querySelectorAll('.lang-pill-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === lang);
     });
   }
 
@@ -100,11 +83,6 @@ export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClic
     if (onThemeToggle) onThemeToggle(nextTheme);
   });
 
-  const statusPill = header.querySelector('#backend-status-pill');
-  if (onStatusClick) {
-    statusPill.addEventListener('click', onStatusClick);
-  }
-
   const recoveryLinkBtn = header.querySelector('#header-recovery-link-btn');
   if (recoveryLinkBtn && onSaveRecoveryLink) {
     recoveryLinkBtn.addEventListener('click', onSaveRecoveryLink);
@@ -112,18 +90,12 @@ export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClic
 
   return {
     element: header,
-    setActiveMode,
-    setStatus: ({ available, reason }) => {
-      const textEl = header.querySelector('#backend-status-text');
-      if (available) {
-        statusPill.className = 'connection-pill connected';
-        textEl.textContent = 'Backend Connected';
-        statusPill.title = reason || 'Live API connection active';
-      } else {
-        statusPill.className = 'connection-pill offline';
-        textEl.textContent = 'Backend Offline';
-        statusPill.title = reason || 'Backend is currently offline';
+    setActiveLanguage,
+    destroy: () => {
+      if (header.parentNode) {
+        header.parentNode.removeChild(header);
       }
-    }
+    },
+    setStatus: () => {}
   };
 }

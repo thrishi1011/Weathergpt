@@ -98,6 +98,83 @@ export async function askQuestion({ question, location = 'Warangal', coordinates
 }
 
 /**
+ * Best-effort translation of a short piece of free text into another language
+ */
+const LANGUAGE_NAMES = { en: 'English', te: 'Telugu', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada' };
+
+export async function translateFreeText(text, targetLanguage = 'en') {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return text;
+
+  try {
+    const res = await batchTranslateTexts([trimmed], targetLanguage);
+    if (res && res[0]) return res[0];
+  } catch (_) {}
+
+  return text;
+}
+
+/**
+ * Batch translation of an array of texts via backend /api/translate
+ * Supports translating ANY language to ANY language (including into English).
+ */
+export async function batchTranslateTexts(texts = [], targetLanguage = 'en') {
+  if (!texts || texts.length === 0) return [];
+
+  // 1. Try Backend /api/translate (Google Translate Engine + Gemini Fallback)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        texts: texts,
+        target_language: targetLanguage
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.translations) && data.translations.length === texts.length) {
+        return data.translations;
+      }
+    }
+  } catch (err) {
+    console.debug('Backend batch translation error, attempting direct Google Translate:', err);
+  }
+
+  // 2. Direct client-side Google Translate fallback
+  try {
+    const directTranslations = await Promise.all(
+      texts.map(async (t) => {
+        if (!t || !t.trim()) return t;
+        try {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(t.trim())}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const parsed = await res.json();
+            if (Array.isArray(parsed) && Array.isArray(parsed[0])) {
+              return parsed[0].map(item => item[0]).join('');
+            }
+          }
+        } catch (_) {}
+        return t;
+      })
+    );
+    return directTranslations;
+  } catch (_) {}
+
+  return texts;
+}
+
+/**
  * Fetch current weather data and IMD alerts for a location or coordinates
  * @param {string} location
  * @param {Object} [coords] - { latitude, longitude }

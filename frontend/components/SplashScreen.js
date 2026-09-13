@@ -1,8 +1,4 @@
-/**
- * SplashScreen Component
- * Displays an eye-catching, unique animated WeatherGPT logo,
- * feature badges, and smooth transition into Mode Selection.
- */
+import { bindLiveDate } from '../utils/dateTime.js';
 
 export function createSplashScreen({ onContinue }) {
   const container = document.createElement('div');
@@ -10,6 +6,10 @@ export function createSplashScreen({ onContinue }) {
   container.id = 'splash-screen';
 
   container.innerHTML = `
+    <div class="splash-date-display" id="splash-date-display">
+      <span class="header-date-icon">📅</span>
+      <span class="header-date-text" id="splash-date-text"></span>
+    </div>
     <div class="splash-content-wrapper">
       <!-- Unique Animated WeatherGPT Emblem -->
       <div class="splash-logo-host" id="splash-animated-logo">
@@ -93,26 +93,10 @@ export function createSplashScreen({ onContinue }) {
         <p class="splash-tagline">AI-Powered Agro-Meteorological & Atmospheric Intelligence</p>
       </div>
 
-      <!-- Capability Badges -->
-      <div class="splash-modes-preview">
-        <div class="mode-pill-badge">
-          <span>🚗 Travelling Mode</span>
-        </div>
-        <div class="mode-pill-badge">
-          <span>🌾 Farming Mode</span>
-        </div>
-        <div class="mode-pill-badge">
-          <span>⛅ Outdoor Mode</span>
-        </div>
-        <div class="mode-pill-badge">
-          <span>💬 Conversational AI</span>
-        </div>
-      </div>
-
       <!-- Launch Action & Auto-Timer -->
       <div class="splash-action-container">
         <button type="button" class="btn-splash-launch" id="btn-splash-launch">
-          <span>Select Mode & Explore</span>
+          <span>Enter WeatherGPT</span>
           <span class="arrow-icon">➔</span>
         </button>
 
@@ -124,10 +108,14 @@ export function createSplashScreen({ onContinue }) {
     </div>
   `;
 
+  const dateTextEl = container.querySelector('#splash-date-text');
+  const stopDateBinding = bindLiveDate(dateTextEl);
+
   let transitioned = false;
   function triggerContinue() {
     if (transitioned) return;
     transitioned = true;
+    stopDateBinding();
     container.classList.add('fade-out');
     setTimeout(() => {
       if (onContinue) onContinue();
@@ -152,6 +140,7 @@ export function createSplashScreen({ onContinue }) {
   return {
     element: container,
     destroy: () => {
+      stopDateBinding();
       if (container.parentNode) {
         container.parentNode.removeChild(container);
       }

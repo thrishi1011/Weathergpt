@@ -17,18 +17,18 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   let isListening = false;
 
   const PLACEHOLDERS = {
-    en: 'Ask anything about weather… or press 🎤 to speak',
-    te: 'వాతావరణం గురించి ఏదైనా అడగండి… లేదా మాట్లాడటానికి 🎤 నొక్కండి',
-    hi: 'मौसम के बारे में कुछ भी पूछें… या बोलने के लिए 🎤 दबाएं',
-    ta: 'வானிலை பற்றி ஏதேனும் கேட்கவும்… அல்லது பேச 🎤 அழுத்தவும்',
-    kn: 'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ… ಅಥವಾ ಮಾತನಾಡಲು 🎤 ಒತ್ತಿರಿ',
-    ml: 'കാലാവസ്ഥയെക്കുറിച്ച് എന്തെങ്കിലും ചോദിക്കൂ… അല്ലെങ്കിൽ സംസാരിക്കാൻ 🎤 അമർത്തുക',
-    bn: 'আবহাওয়া সম্পর্কে যেকোনো প্রশ্ন করুন… বা কথা বলতে 🎤 চাপুন',
-    mr: 'हवामानाबद्दल काहीही विचारा… किंवा बोलण्यासाठी 🎤 दाबा',
-    gu: 'હવામાન વિશે કંઈપણ પૂછો… અથવા બોલવા માટે 🎤 દબાવો',
-    pa: 'ਮੌਸਮ ਬਾਰੇ ਕੁਝ ਵੀ ਪੁੱਛੋ… ਜਾਂ ਬੋਲਣ ਲਈ 🎤 ਦਬਾਓ',
-    or: 'ପାଣିପାଗ ବିଷୟରେ ଯାହା ପଚାରନ୍ତୁ… ବା କହିବା ପାଇଁ 🎤 ଦବାନ୍ତୁ',
-    ur: 'موسم کے بارے میں کچھ بھی پوچھیں… یا بولنے کے لیے 🎤 دبائیں',
+    en: 'Ask anything about weather… or click mic to speak',
+    te: 'వాతావరణం గురించి ఏదైనా అడగండి… లేదా మాట్లాడటానికి మైక్ నొక్కండి',
+    hi: 'मौसम के बारे में कुछ भी पूछें… या बोलने के लिए माइक दबाएं',
+    ta: 'வானிலை பற்றி ஏதேனும் கேட்கவும்… அல்லது பேச மைக் அழுத்தவும்',
+    kn: 'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ… లేదా ಮಾತನಾಡಲು ಮೈಕ್ ಒತ್ತಿರಿ',
+    ml: 'കാലാവസ്ഥയെക്കുറിച്ച് എന്തെങ്കിലും ചോദിക്കൂ… അല്ലെങ്കിൽ സംസാരിക്കാൻ മൈക്ക് അമർത്തുക',
+    bn: 'আবহাওয়া সম্পর্কে যেকোনো প্রশ্ন করুন… বা কথা বলতে মাইক চাপুন',
+    mr: 'हवामानाबद्दल काहीही विचारा… किंवा बोलण्यासाठी माइक दाबा',
+    gu: 'હવામાન વિશે કંઈપણ પૂછો… અથવા બોલવા માટે માઇક દબાવો',
+    pa: 'ਮੌਸਮ ਬਾਰੇ ਕੁਝ ਵੀ ਪੁੱਛੋ… ਜਾਂ ਬੋਲਣ ਲਈ ਮਾਈਕ ਦਬਾਓ',
+    or: 'ପାଣିପାଗ ବିଷୟରେ ଯାହା ପଚାରନ୍ତୁ… ବା କହିବା ପାଇଁ ମାଇକ ଦବାନ୍ତୁ',
+    ur: 'موسم کے بارے میں کچھ بھی پوچھیں… یا بولنے کے لیے مائیک دبائیں',
   };
 
   const LANG_NAMES = {
@@ -49,7 +49,7 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
   container.innerHTML = `
     <!-- Voice Status Banner (hidden when inactive) -->
     <div class="voice-status-bar" id="voice-status-bar">
-      <span id="voice-status-text">🎙️ Listening… speak now</span>
+      <span id="voice-status-text">Listening… speak now</span>
       <div class="voice-wave-indicator" id="voice-wave">
         <div class="wave-bar"></div>
         <div class="wave-bar"></div>
@@ -73,10 +73,14 @@ export function createInputBar({ onSend, onLanguageChange, onError }) {
           type="button"
           id="btn-voice-input"
           class="mic-toggle-btn"
-          title="Voice input — press to speak"
+          title="Voice input — click to speak"
           aria-label="Voice input"
         >
-          🎤
+          <svg class="mic-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+          </svg>
         </button>
 
         <button

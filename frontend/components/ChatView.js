@@ -24,16 +24,6 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
           Ask direct questions about rainfall, storms, or temperature. WeatherGPT provides direct humanoid answers, clear advice on what you can and cannot do, and precise charts.
         </p>
 
-        <!-- Mode Quick Nav Pills -->
-        <div class="empty-modes-nav">
-          <span class="nav-label">Switch to specialized mode:</span>
-          <div class="empty-modes-row">
-            <button type="button" class="empty-mode-btn" data-target="travel">🚗 Travelling Mode</button>
-            <button type="button" class="empty-mode-btn" data-target="farm">🌾 Farming Mode</button>
-            <button type="button" class="empty-mode-btn" data-target="outdoor">⛅ Outdoor Mode</button>
-          </div>
-        </div>
-
         <div class="suggestion-prompts-grid" id="suggestion-prompts">
           <button type="button" class="suggestion-pill-card" data-prompt="Will it rain today?">
             <span class="suggestion-pill-icon">🌧️</span>
@@ -58,12 +48,6 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     container.querySelectorAll('.suggestion-pill-card').forEach(btn => {
       btn.addEventListener('click', () => {
         if (onSuggestionClick) onSuggestionClick(btn.dataset.prompt);
-      });
-    });
-
-    container.querySelectorAll('.empty-mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (onSwitchMode) onSwitchMode(btn.dataset.target);
       });
     });
   }
@@ -92,6 +76,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('div');
     row.className = 'message-row user-row';
+    row.dataset.originalText = text;
 
     row.innerHTML = `
       <div class="message-avatar user-avatar" title="You">👤</div>
@@ -107,6 +92,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
 
     container.appendChild(row);
     scrollToBottom();
+    return row;
   }
 
   /**
@@ -118,9 +104,10 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('div');
     row.className = 'message-row assistant-row';
-
-    // Real answer text from LLM pipeline
-    const speechPlainText = answerText;
+    row.dataset.originalText = answerText;
+    row.dataset.originalLanguage = language;
+    row.dataset.currentLanguage = language;
+    row.dataset[`trans_${language}`] = answerText;
 
     // Optional telemetry snippet if real weatherData was passed in options
     const weatherData = options.weatherData;
@@ -168,11 +155,12 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
       </div>
     `;
 
-    // Copy to clipboard listener
+    // Copy to clipboard listener (always copies current translated text)
     const copyBtn = row.querySelector('.copy-btn');
     copyBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(speechPlainText);
+        const textToCopy = row.querySelector('.assistant-answer-text')?.innerText || answerText;
+        await navigator.clipboard.writeText(textToCopy);
         copyBtn.textContent = '✅ Copied';
         setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
       } catch (err) {
@@ -180,9 +168,12 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
       }
     });
 
-    // TTS Voice Playback listener
+    // TTS Voice Playback listener (always speaks current translated text in current language)
     const speakBtn = row.querySelector('.speak-btn');
     speakBtn.addEventListener('click', () => {
+      const textToSpeak = row.querySelector('.assistant-answer-text')?.innerText || answerText;
+      const activeSpeakLang = row.dataset.currentLanguage || language;
+
       if (currentlyPlayingBtn === speakBtn) {
         speechService.stopSpeaking();
         speakBtn.classList.remove('speaking');
@@ -201,8 +192,8 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
       currentlyPlayingBtn = speakBtn;
 
       speechService.speakText({
-        text: speechPlainText,
-        language: language,
+        text: textToSpeak,
+        language: activeSpeakLang,
         onStart: () => {
           speakBtn.classList.add('speaking');
         },
@@ -216,6 +207,98 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
 
     container.appendChild(row);
     scrollToBottom();
+    return row;
+  }
+
+  const translationCache = new Map();
+
+  /**
+   * Translate every visible user question and assistant answer in the conversation to targetLang
+   */
+  async function translateAllVisibleMessages(targetLang, batchTranslateFunc) {
+    const rows = container.querySelectorAll('.message-row');
+    if (rows.length === 0) return;
+
+    const itemsToFetch = [];
+    const targetsToFetch = [];
+
+    rows.forEach(row => {
+      const isUser = row.classList.contains('user-row');
+      const textEl = isUser ? row.querySelector('.user-bubble') : row.querySelector('.assistant-answer-text');
+      if (!textEl) return;
+
+      const currentText = (textEl.innerText || textEl.textContent || '').trim();
+      const baseText = row.dataset.originalText || currentText;
+      if (!row.dataset.originalText) {
+        row.dataset.originalText = baseText;
+      }
+
+      // Check if we already have this exact target language cached on the row or global cache
+      const cachedLangText = row.dataset[`trans_${targetLang}`];
+      const cacheKey = `${targetLang}:${baseText}`;
+
+      if (cachedLangText) {
+        if (isUser) {
+          textEl.textContent = cachedLangText;
+        } else {
+          textEl.innerHTML = escapeHtml(cachedLangText).replace(/\n/g, '<br/>');
+        }
+        row.dataset.currentLanguage = targetLang;
+      } else if (translationCache.has(cacheKey)) {
+        const cached = translationCache.get(cacheKey);
+        row.dataset[`trans_${targetLang}`] = cached;
+        if (isUser) {
+          textEl.textContent = cached;
+        } else {
+          textEl.innerHTML = escapeHtml(cached).replace(/\n/g, '<br/>');
+        }
+        row.dataset.currentLanguage = targetLang;
+      } else {
+        // Need translation from baseText to targetLang
+        itemsToFetch.push(baseText);
+        targetsToFetch.push({ row, textEl, isUser, cacheKey, baseText });
+      }
+    });
+
+    if (itemsToFetch.length > 0 && typeof batchTranslateFunc === 'function') {
+      try {
+        const translatedArray = await batchTranslateFunc(itemsToFetch, targetLang);
+        targetsToFetch.forEach((target, index) => {
+          const trans = translatedArray[index] || itemsToFetch[index];
+          translationCache.set(target.cacheKey, trans);
+          target.row.dataset[`trans_${targetLang}`] = trans;
+          if (target.isUser) {
+            target.textEl.textContent = trans;
+          } else {
+            target.textEl.innerHTML = escapeHtml(trans).replace(/\n/g, '<br/>');
+          }
+          target.row.dataset.currentLanguage = targetLang;
+        });
+      } catch (err) {
+        console.warn('ChatView message translation error:', err);
+      }
+    }
+  }
+
+  /**
+   * Update an existing user message row with translated text
+   */
+  function updateUserMessage(row, newText) {
+    if (!row || !row.isConnected) return;
+    const bubble = row.querySelector('.user-bubble');
+    if (bubble) bubble.textContent = newText;
+  }
+
+  /**
+   * Update an existing assistant message row with translated text
+   */
+  function updateAssistantMessage(row, answerText, language = 'en', isDemo = false, options = {}) {
+    if (!row || !row.isConnected) return;
+    const answerP = row.querySelector('.assistant-answer-text');
+    if (answerP) {
+      answerP.innerHTML = escapeHtml(answerText).replace(/\n/g, '<br/>');
+      row.dataset.currentLanguage = language;
+    }
   }
 
   /**
@@ -236,7 +319,7 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
-        <span class="typing-text">WeatherGPT is evaluating radar & meteorological data...</span>
+        <span class="typing-text">WeatherGPT is evaluating radar &amp; meteorological data...</span>
       </div>
     `;
 
@@ -293,6 +376,9 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     element: container,
     addUserMessage,
     addAssistantMessage,
+    updateUserMessage,
+    updateAssistantMessage,
+    translateAllVisibleMessages,
     showLoadingState,
     hideLoadingState,
     clearMessages,

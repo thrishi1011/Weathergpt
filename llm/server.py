@@ -18,7 +18,7 @@ if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     except Exception: pass
 
 from llm.service import ask_weather
-from llm.generator import detect_language_with_gemini, transcribe_audio_with_gemini
+from llm.generator import detect_language_with_gemini, transcribe_audio_with_gemini, translate_text_with_gemini
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s")
 logger = logging.getLogger("weathergpt.llm.server")
@@ -102,6 +102,24 @@ class LLMRequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.error(f"Error detecting language: {e}", exc_info=True)
                 self._send_json(500, {"error": "Language detection error", "message": str(e)})
+
+        elif self.path in ("/translate", "/api/translate"):
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body) if body else {}
+                texts = payload.get("texts") or payload.get("text") or []
+                target_lang = payload.get("target_language") or payload.get("language") or "en"
+
+                if not texts:
+                    self._send_json(400, {"error": "Missing texts parameter"})
+                    return
+
+                res = translate_text_with_gemini(texts, target_lang)
+                self._send_json(200, res)
+            except Exception as e:
+                logger.error(f"Error translating text: {e}", exc_info=True)
+                self._send_json(500, {"error": "Translation error", "message": str(e)})
 
         elif self.path in ("/ask", "/api/ask"):
             try:

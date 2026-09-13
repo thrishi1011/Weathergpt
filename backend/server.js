@@ -60,6 +60,71 @@ app.post('/api/detect-language', async (req, res) => {
   return res.json({ language: 'en', language_name: 'English', fallback: true });
 });
 
+// Ultra-Fast Google Translate + Gemini Translation Engine
+async function translateTextWithGoogle(text, targetLang) {
+  if (!text || !text.trim()) return text;
+  const clean = text.trim();
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(clean)}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Google translate returned ${response.status}`);
+  const data = await response.json();
+  if (Array.isArray(data) && Array.isArray(data[0])) {
+    return data[0].map(item => item[0]).join('');
+  }
+  return clean;
+}
+
+app.post('/api/translate', async (req, res) => {
+  const { texts, text, target_language, language } = req.body || {};
+  const query = texts || text;
+  const targetLang = target_language || language || 'en';
+
+  if (!query) {
+    return res.status(400).json({ error: 'Missing texts parameter' });
+  }
+
+  const isSingle = typeof query === 'string';
+  const items = isSingle ? [query] : Array.isArray(query) ? query : [String(query)];
+
+  // 1. Try Google Translate for sub-100ms instant translations
+  try {
+    const translations = await Promise.all(
+      items.map(t => translateTextWithGoogle(t, targetLang).catch(err => {
+        console.warn('Single text Google translate failure:', err.message);
+        return t;
+      }))
+    );
+    return res.json({
+      translations: isSingle ? translations[0] : translations,
+      language: targetLang,
+      engine: 'google'
+    });
+  } catch (err) {
+    console.warn('Google translate batch failed, attempting Gemini LLM fallback:', err.message);
+  }
+
+  // 2. Gemini LLM Fallback
+  try {
+    const llmRes = await fetch(`http://127.0.0.1:${LLM_PORT}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: items, target_language: targetLang })
+    });
+    if (llmRes.ok) {
+      const data = await llmRes.json();
+      return res.json({
+        translations: isSingle && Array.isArray(data.translations) ? data.translations[0] : data.translations,
+        language: targetLang,
+        engine: 'gemini'
+      });
+    }
+  } catch (err) {
+    console.warn('Gemini translate fallback error:', err.message);
+  }
+
+  return res.json({ translations: query, language: targetLang, fallback: true });
+});
+
 // Gemini Audio Speech-to-Text Route (Transcribes actual audio via Gemini)
 const handleAudioTranscription = async (req, res) => {
   const { audio, audioBase64, mime_type, mimeType } = req.body || {};

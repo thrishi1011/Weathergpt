@@ -27,6 +27,38 @@
   pointer-events: none;
 }
 
+.splash-date-display {
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  z-index: 2;
+}
+
+[data-theme="light"] .splash-date-display {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+@media (max-width: 480px) {
+  .splash-date-display {
+    top: 0.85rem;
+    font-size: 0.7rem;
+    padding: 0.32rem 0.8rem;
+  }
+}
+
 .splash-content-wrapper {
   max-width: 620px;
   width: 100%;
