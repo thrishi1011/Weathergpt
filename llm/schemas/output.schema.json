@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WeatherGPT LLM Output Schema",
+  "description": "Strict output schema returned by the LLM layer, directly fulfilling shared/api-contract.md",
+  "type": "object",
+  "required": [
+    "answer",
+    "language"
+  ],
+  "properties": {
+    "answer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Final user-facing natural language response. Concise, grounded in data, no hallucinations."
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "en",
+        "hi",
+        "te",
+        "ta",
+        "kn",
+        "ml",
+        "bn",
+        "mr",
+        "as",
+        "gu",
+        "ks",
+        "pa",
+        "or",
+        "ur"
+      ],
+      "description": "Response language code: en, hi, te, ta, kn, ml, bn, mr, as, gu, ks, pa, or, ur."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "based_on_data",
+        "partial_data",
+        "no_data"
+      ],
+      "description": "Data sufficiency indicator."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Weather data attributes used (e.g. ['temperature', 'rain_probability', 'imd_alert'])."
+    },
+    "safety_flag": {
+      "type": "boolean",
+      "description": "True if an active IMD alert or severe weather warning was discussed."
+    }
+  },
+  "additionalProperties": false
+}

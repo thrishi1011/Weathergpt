@@ -30,19 +30,32 @@ function updateBackendStatus(available, reason = '') {
  * @param {Object} params
  * @param {string} params.question - The user query (e.g. "Will it rain tomorrow?")
  * @param {string} params.location - The chosen location (e.g. "Warangal")
+ * @param {Object} [params.coordinates] - Optional { latitude, longitude }
  * @param {string} params.language - Language code (e.g. "en", "te", "hi")
  * @returns {Promise<{answer: string, language: string, isDemo?: boolean}>}
  */
-export async function askQuestion({ question, location = 'Warangal', language = 'en' }) {
+export async function askQuestion({ question, location = 'Warangal', coordinates = null, language = 'en', conversation_context = null, history = null }) {
   const payload = {
     question: question.trim(),
     location: (location || 'Warangal').trim(),
     language: language || 'en'
   };
 
+  const context = conversation_context || history;
+  if (Array.isArray(context) && context.length > 0) {
+    payload.conversation_context = context;
+  }
+
+  if (coordinates && coordinates.latitude != null && coordinates.longitude != null) {
+    payload.coordinates = {
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude
+    };
+  }
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const response = await fetch('/api/ask', {
       method: 'POST',
@@ -85,15 +98,7 @@ export async function askQuestion({ question, location = 'Warangal', language = 
 }
 
 /**
- * Best-effort translation of a short piece of free text (e.g. a user's own
- * previously-typed chat question) into another language, used when the
- * global language selector is switched mid-conversation.
- *
- * There is no dedicated /api/translate endpoint in the contract, so this
- * reuses /api/ask with an explicit translation instruction. A live backend
- * (LLM) will translate it properly; with no backend running the request
- * simply fails and the original text is kept unchanged rather than risking
- * a wrong guess.
+ * Best-effort translation of a short piece of free text into another language
  */
 const LANGUAGE_NAMES = { en: 'English', te: 'Telugu', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada' };
 
@@ -101,51 +106,93 @@ export async function translateFreeText(text, targetLanguage = 'en') {
   const trimmed = (text || '').trim();
   if (!trimmed) return text;
 
-  const targetName = LANGUAGE_NAMES[targetLanguage] || 'English';
+  try {
+    const res = await batchTranslateTexts([trimmed], targetLanguage);
+    if (res && res[0]) return res[0];
+  } catch (_) {}
 
+  return text;
+}
+
+/**
+ * Batch translation of an array of texts via backend /api/translate
+ * Supports translating ANY language to ANY language (including into English).
+ */
+export async function batchTranslateTexts(texts = [], targetLanguage = 'en') {
+  if (!texts || texts.length === 0) return [];
+
+  // 1. Try Backend /api/translate (Google Translate Engine + Gemini Fallback)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const response = await fetch('/api/ask', {
+    const response = await fetch('/api/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
       body: JSON.stringify({
-        question: `Translate the following sentence into ${targetName}. Reply with ONLY the translated sentence, no quotes, no extra text: ${trimmed}`,
-        location: 'Warangal',
-        language: targetLanguage
+        texts: texts,
+        target_language: targetLanguage
       }),
       signal: controller.signal
     });
 
     clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
-
-    const data = await response.json();
-    const translated = (data.answer || '').trim().replace(/^["']|["']$/g, '');
-    return translated || text;
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.translations) && data.translations.length === texts.length) {
+        return data.translations;
+      }
+    }
   } catch (err) {
-    // No live backend available to translate with — keep original wording.
-    return text;
+    console.debug('Backend batch translation error, attempting direct Google Translate:', err);
   }
+
+  // 2. Direct client-side Google Translate fallback
+  try {
+    const directTranslations = await Promise.all(
+      texts.map(async (t) => {
+        if (!t || !t.trim()) return t;
+        try {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(t.trim())}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const parsed = await res.json();
+            if (Array.isArray(parsed) && Array.isArray(parsed[0])) {
+              return parsed[0].map(item => item[0]).join('');
+            }
+          }
+        } catch (_) {}
+        return t;
+      })
+    );
+    return directTranslations;
+  } catch (_) {}
+
+  return texts;
 }
 
 /**
- * Fetch current weather data and IMD alerts for a location
+ * Fetch current weather data and IMD alerts for a location or coordinates
  * @param {string} location
+ * @param {Object} [coords] - { latitude, longitude }
  * @returns {Promise<Object>}
  */
-export async function fetchWeather(location = 'Warangal') {
+export async function fetchWeather(location = 'Warangal', coords = null) {
   const loc = (location || 'Warangal').trim();
+
+  let url = `/api/weather?location=${encodeURIComponent(loc)}`;
+  if (coords && coords.latitude != null && coords.longitude != null) {
+    url += `&lat=${coords.latitude}&lon=${coords.longitude}`;
+  }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`/api/weather?location=${encodeURIComponent(loc)}`, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
@@ -170,21 +217,88 @@ export async function fetchWeather(location = 'Warangal') {
 }
 
 /**
+ * Reverse geocode coordinates to district/city
+ */
+export async function reverseGeocodeCoords(latitude, longitude) {
+  try {
+    const res = await fetch(`/api/location/reverse?lat=${latitude}&lon=${longitude}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] Reverse geocode request failed:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Search locations worldwide
+ */
+export async function searchLocations(query) {
+  try {
+    const res = await fetch(`/api/location/search?query=${encodeURIComponent(query)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || [];
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] Location search failed:', e.message);
+  }
+  return [];
+}
+
+/**
+ * Detect location via IP fallback
+ */
+export async function detectIpLocation() {
+  try {
+    const res = await fetch('/api/location/ip');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[WeatherGPT API] IP location detection failed:', e.message);
+  }
+  return null;
+}
+
+/**
  * Ping backend to check real-time availability
  */
 export async function checkBackendConnection() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('/api/weather?location=Warangal', { signal: controller.signal });
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch('/health', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
-      updateBackendStatus(true, 'Live backend connected');
+      updateBackendStatus(true, 'Backend Connected');
       return true;
     }
   } catch (e) {
     // Expected when backend server is not running
   }
-  updateBackendStatus(false, 'Backend offline (interactive demo mode active)');
+  updateBackendStatus(false, 'Backend Offline');
   return false;
 }
+
+/**
+ * Detect language of query using Gemini API backend
+ */
+export async function detectLanguage(text) {
+  if (!text || !text.trim()) return { language: 'en' };
+  try {
+    const res = await fetch('/api/detect-language', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.trim() })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.debug('Language detection error:', err);
+  }
+  return { language: 'en' };
+}
+

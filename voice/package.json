@@ -1,0 +1,15 @@
+{
+  "name": "weathergpt-voice",
+  "version": "1.0.0",
+  "description": "Voice module for WeatherGPT (STT, Hybrid TTS, Edge TTS Proxy, and Voice UI)",
+  "main": "server/tts-proxy.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/tts-proxy.js",
+    "test": "node tests/unitTests.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "msedge-tts": "^2.0.7"
+  }
+}

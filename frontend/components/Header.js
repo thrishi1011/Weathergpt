@@ -1,17 +1,14 @@
 /**
  * Header Component
- * WeatherGPT Branding, Backend Connectivity status,
- * Global Language Selector, and Theme Toggle.
- * Mode switcher removed — app runs in Chat-only mode.
+ * WeatherGPT Branding, Global Language Selector, Recovery Link, and Theme Toggle.
  */
 
-import { bindLiveDate } from '../utils/dateTime.js';
 import { LANGUAGES, DEFAULT_LANGUAGE } from '../utils/languages.js';
 
 export function createHeader({
   currentLanguage = DEFAULT_LANGUAGE,
   onThemeToggle,
-  onStatusClick,
+  onSaveRecoveryLink,
   onLanguageChange
 }) {
   const header = document.createElement('header');
@@ -19,7 +16,7 @@ export function createHeader({
   header.id = 'app-header';
 
   header.innerHTML = `
-    <!-- Global Language Section: sits above everything else, applies to every mode -->
+    <!-- Global Language Section: sits at the top -->
     <div class="header-language-bar" id="header-language-bar">
       <span class="language-bar-icon">🌐</span>
       <span class="language-bar-label">Language:</span>
@@ -37,7 +34,7 @@ export function createHeader({
       </div>
     </div>
 
-    <!-- Main Row: Branding, Date, Status -->
+    <!-- Main Row: Branding, Recovery Link, Theme Toggle -->
     <div class="header-main-row" id="header-main-row">
       <div class="brand-section">
         <div class="brand-logo-badge" id="brand-logo" title="WeatherGPT" role="img" aria-label="WeatherGPT">
@@ -49,16 +46,9 @@ export function createHeader({
         </div>
       </div>
 
-      <!-- Current Day & Date, visible on every screen -->
-      <div class="header-date-display" id="header-date-display" title="Today's date">
-        <span class="header-date-icon">📅</span>
-        <span class="header-date-text" id="header-date-text"></span>
-      </div>
-
       <div class="header-status-group">
-        <button class="connection-pill" id="backend-status-pill" title="Backend connectivity status">
-          <span class="status-dot"></span>
-          <span id="backend-status-text">Checking Backend...</span>
+        <button type="button" class="recovery-link-header-btn" id="header-recovery-link-btn" title="Save recovery link to restore chats if browser data is cleared">
+          🔗 Save recovery link
         </button>
 
         <button class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle dark/light theme" title="Toggle theme">
@@ -93,35 +83,19 @@ export function createHeader({
     if (onThemeToggle) onThemeToggle(nextTheme);
   });
 
-  const statusPill = header.querySelector('#backend-status-pill');
-  if (onStatusClick) {
-    statusPill.addEventListener('click', onStatusClick);
+  const recoveryLinkBtn = header.querySelector('#header-recovery-link-btn');
+  if (recoveryLinkBtn && onSaveRecoveryLink) {
+    recoveryLinkBtn.addEventListener('click', onSaveRecoveryLink);
   }
-
-  // Live day & date, kept in sync across midnight
-  const dateTextEl = header.querySelector('#header-date-text');
-  const stopDateBinding = bindLiveDate(dateTextEl);
 
   return {
     element: header,
     setActiveLanguage,
     destroy: () => {
-      stopDateBinding();
       if (header.parentNode) {
         header.parentNode.removeChild(header);
       }
     },
-    setStatus: ({ available, reason }) => {
-      const textEl = header.querySelector('#backend-status-text');
-      if (available) {
-        statusPill.className = 'connection-pill';
-        textEl.textContent = 'Backend: Connected';
-        statusPill.title = reason || 'Live API connection active';
-      } else {
-        statusPill.className = 'connection-pill offline-mode';
-        textEl.textContent = 'Backend: Demo Mode';
-        statusPill.title = reason || 'Click to retry connection to live backend';
-      }
-    }
+    setStatus: () => {}
   };
 }

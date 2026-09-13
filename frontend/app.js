@@ -1,7 +1,7 @@
 /**
  * WeatherGPT Application Entry Point
- * Chat-only mode.
- * Travel / Farming / Outdoor modes have been removed.
+ * Direct Chat Cockpit Launch, Anonymous Persistent History,
+ * and Full Multilingual i18n support.
  */
 
 import { createSplashScreen } from './components/SplashScreen.js';
@@ -11,9 +11,24 @@ import { createWeatherWidget } from './components/WeatherWidget.js';
 import { createChatView } from './components/ChatView.js';
 import { createInputBar } from './components/InputBar.js';
 import { createToastManager } from './components/ErrorToast.js';
-import { askQuestion, fetchWeather, checkBackendConnection, registerStatusListener, translateFreeText } from './services/api.js';
-import { DEFAULT_LANGUAGE } from './utils/languages.js';
 import { initI18n, setAppLanguage } from './utils/i18n.js';
+import { DEFAULT_LANGUAGE } from './utils/languages.js';
+import {
+  askQuestion,
+  fetchWeather,
+  checkBackendConnection,
+  registerStatusListener,
+  batchTranslateTexts
+} from './services/api.js';
+import {
+  initAuthSession,
+  fetchLatestSession,
+  fetchSessionMessages,
+  createChatSession,
+  saveChatMessage,
+  getOrCreateRecoveryLink,
+  restoreChatWithToken
+} from './services/supabase.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const appRoot = document.getElementById('app');
@@ -21,16 +36,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const toasts = createToastManager();
 
-  // Restore saved language, defaulting to English
-  const savedLanguage = localStorage.getItem('weathergpt_language') || DEFAULT_LANGUAGE;
-  initI18n(savedLanguage);
+  // Initialize Supabase Anonymous Auth silently in background
+  initAuthSession().catch(err => console.debug('Supabase anonymous auth init:', err));
+
+  const savedLang = localStorage.getItem('weathergpt_language') || DEFAULT_LANGUAGE;
+  initI18n(savedLang);
 
   // Application State
   const state = {
     location: 'Warangal',
-    language: savedLanguage,
+    coordinates: null, // { latitude, longitude }
+    locationSource: 'preset',
+    language: savedLang,
     isProcessing: false,
-    weatherData: null
+    weatherData: null,
+    currentSessionId: null
   };
 
   // Restore saved theme
@@ -39,30 +59,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.setAttribute('data-theme', savedTheme);
   }
 
-  // ── 1. Header ──────────────────────────────────────────────────────────────
-  const headerComponent = createHeader({
+  // Component References
+  let headerComponent = null;
+  let chatViewRef = null;
+  let inputBarRef = null;
+  let activeLocationBarRef = null;
+  let activeWeatherWidgetRef = null;
+
+  // 1. Initialize Header (Branding, Languages, Recovery Link, Theme Toggle)
+  headerComponent = createHeader({
     currentLanguage: state.language,
     onThemeToggle: (theme) => {
       localStorage.setItem('weathergpt_theme', theme);
     },
-    onStatusClick: async () => {
-      toasts.showWarning('Pinging WeatherGPT backend service on /api/weather...', 'Health Check');
-      const isOnline = await checkBackendConnection();
-      if (isOnline) {
-        toasts.showSuccess('Connected to live backend successfully!', 'Backend Online');
-      } else {
-        toasts.showWarning('Live backend is currently offline. Running in interactive demo mode.', 'Demo Mode Active');
-      }
-    },
-    onLanguageChange: (lang) => {
+    onLanguageChange: async (lang) => {
       state.language = lang;
       localStorage.setItem('weathergpt_language', lang);
       setAppLanguage(lang);
-      // Update the live input bar language in place
-      if (inputBarRef) inputBarRef.setLanguage(lang);
-      // Re-translate every earlier turn in this conversation (both the
-      // user's own questions and WeatherGPT's answers) into the new language
-      retranslateConversationHistory(lang);
+
+      if (inputBarRef && inputBarRef.setLanguage) {
+        inputBarRef.setLanguage(lang);
+      }
+
+      // Translate all visible chat messages to the newly selected language
+      if (chatViewRef && chatViewRef.translateAllVisibleMessages) {
+        await chatViewRef.translateAllVisibleMessages(lang, batchTranslateTexts);
+      }
+    },
+    onSaveRecoveryLink: async () => {
+      try {
+        const link = await getOrCreateRecoveryLink();
+        if (link) {
+          await navigator.clipboard.writeText(link);
+          toasts.showSuccess(
+            'Recovery link copied to clipboard! Save this link somewhere safe to restore your conversations if browser data is cleared.',
+            'Recovery Link'
+          );
+        } else {
+          toasts.showError('Unable to generate recovery link at this time.', 'Recovery Link');
+        }
+      } catch (err) {
+        console.warn('Recovery link generation error:', err);
+        toasts.showWarning('Could not copy link to clipboard automatically.', 'Recovery Link');
+      }
     }
   });
 
@@ -70,7 +109,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     headerComponent.setStatus(status);
   });
 
-  // ── 2. Splash Screen ───────────────────────────────────────────────────────
+  // Check for Recovery Link in URL (?recover=...)
+  const urlParams = new URLSearchParams(window.location.search);
+  const recoveryToken = urlParams.get('recover');
+  if (recoveryToken) {
+    (async () => {
+      try {
+        const res = await restoreChatWithToken(recoveryToken);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        if (res.success) {
+          toasts.showSuccess(
+            'Your previous WeatherGPT conversations have been securely restored!',
+            'History Restored'
+          );
+          if (chatViewRef) {
+            resumeLastActiveChatSession();
+          }
+        } else {
+          toasts.showError(res.message || 'Invalid recovery link.', 'Recovery Error');
+        }
+      } catch (e) {
+        console.warn('Recovery URL processing failed:', e);
+      }
+    })();
+  }
+
+  // 2. Animated Clouds Loading Screen at startup -> Transitions directly into Chat Cockpit
   const splash = createSplashScreen({
     onContinue: () => {
       splash.destroy();
@@ -78,77 +142,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  appRoot.appendChild(headerComponent.element);
   appRoot.appendChild(splash.element);
 
-  // Track the active InputBar/ChatView so language changes update them in-place
-  let inputBarRef = null;
-  let chatViewRef = null;
-
-  // Ordered record of every question/answer pair asked in this session, so a
-  // language switch can re-render each turn instead of only affecting new
-  // messages. `originalQuestion` is kept fixed (never overwritten) so repeated
-  // language switches always translate from the source wording rather than
-  // compounding translations of translations.
-  let conversationHistory = [];
-
   /**
-   * Re-render every earlier chat turn in the newly selected language.
-   * Assistant answers are re-derived via the same askQuestion() pipeline
-   * used for new messages (so demo mode and a live backend behave
-   * identically). The user's own question bubble is best-effort translated
-   * via translateFreeText(), which only actually changes wording when a
-   * live backend/LLM is reachable — otherwise it safely leaves the original
-   * text as-is rather than guessing.
+   * Render General Chat Cockpit Layout
    */
-  async function retranslateConversationHistory(lang) {
-    if (!chatViewRef || conversationHistory.length === 0) return;
-
-    await Promise.all(conversationHistory.map(async (entry) => {
-      const [translatedQuestion, result] = await Promise.all([
-        translateFreeText(entry.originalQuestion, lang),
-        askQuestion({ question: entry.originalQuestion, location: entry.location, language: lang })
-      ]);
-
-      chatViewRef.updateUserMessage(entry.userRow, translatedQuestion);
-      chatViewRef.updateAssistantMessage(entry.assistantRow, result.answer, result.language, result.isDemo, {
-        question: entry.originalQuestion,
-        location: entry.location
-      });
-    }));
-  }
-
-  // ── 3. Chat Workspace ──────────────────────────────────────────────────────
   function renderChatWorkspace() {
-    // Clear everything except header
     appRoot.innerHTML = '';
     appRoot.appendChild(headerComponent.element);
-
-    // Fresh conversation each time the chat workspace is (re)built
-    conversationHistory = [];
 
     const mainLayout = document.createElement('div');
     mainLayout.className = 'main-layout';
 
-    // ── Sidebar: Location + Weather ────────────────────────────────────────
+    // Left Sidebar: Location & Weather Telemetry + IMD Alert
     const sidebar = document.createElement('aside');
     sidebar.className = 'sidebar-panel';
     sidebar.id = 'sidebar-panel';
 
     const locationBar = createLocationBar({
       initialLocation: state.location,
-      onLocationChange: async (newLocation) => {
-        state.location = newLocation;
+      initialCoords: state.coordinates,
+      onLocationChange: async (locData) => {
+        if (typeof locData === 'string') {
+          state.location = locData;
+          state.coordinates = null;
+          state.locationSource = 'manual';
+        } else {
+          state.location = locData.name;
+          state.coordinates = locData.coordinates || null;
+          state.locationSource = locData.source || 'manual';
+        }
         await reloadWeatherData();
       }
     });
+    activeLocationBarRef = locationBar;
 
     const weatherWidget = createWeatherWidget();
+    activeWeatherWidgetRef = weatherWidget;
 
     sidebar.appendChild(locationBar.element);
     sidebar.appendChild(weatherWidget.element);
 
-    // ── Right Panel: Chat Cockpit ────────────────────────────────────────
+    // Right Panel: Chat Cockpit
     const chatSection = document.createElement('main');
     chatSection.className = 'chat-viewport-section';
     chatSection.id = 'chat-viewport-section';
@@ -158,19 +193,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleUserQuery(promptText);
       }
     });
-
     chatViewRef = chatView;
 
     const inputBar = createInputBar({
       language: state.language,
-      onSend: ({ question }) => {
+      onLanguageChange: async (lang) => {
+        state.language = lang;
+        headerComponent.setActiveLanguage(lang);
+        setAppLanguage(lang);
+        if (chatViewRef && chatViewRef.translateAllVisibleMessages) {
+          await chatViewRef.translateAllVisibleMessages(lang, batchTranslateTexts);
+        }
+      },
+      onSend: ({ question, language }) => {
+        state.language = language;
         handleUserQuery(question);
       },
       onError: (msg) => {
         toasts.showWarning(msg, 'Voice Input');
       }
     });
-
     inputBarRef = inputBar;
 
     chatSection.appendChild(chatView.element);
@@ -180,6 +222,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     mainLayout.appendChild(chatSection);
     appRoot.appendChild(mainLayout);
 
+    // Automatically find and restore the last active conversation
+    resumeLastActiveChatSession();
+
+    // Auto-detect GPS if permission already granted or prompt gently
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted') {
+          locationBar.detectGps();
+        }
+      }).catch(() => {});
+    }
+
     // Initial weather data load
     if (state.weatherData) {
       weatherWidget.update(state.weatherData);
@@ -187,39 +241,106 @@ document.addEventListener('DOMContentLoaded', async () => {
       reloadWeatherData();
     }
 
-    // ── Query Handler ────────────────────────────────────────────────────
+    /**
+     * Automatically restore the user's latest conversation on startup
+     */
+    async function resumeLastActiveChatSession() {
+      try {
+        const latestSession = await fetchLatestSession();
+        if (latestSession && latestSession.id) {
+          state.currentSessionId = latestSession.id;
+          const messages = await fetchSessionMessages(latestSession.id);
+          if (messages && messages.length > 0 && chatViewRef) {
+            chatViewRef.loadSessionMessages(messages, state.location);
+            // Always translate restored messages to the active application language
+            if (state.language && chatViewRef.translateAllVisibleMessages) {
+              await chatViewRef.translateAllVisibleMessages(state.language, batchTranslateTexts);
+            }
+          }
+        } else {
+          state.currentSessionId = null;
+        }
+      } catch (err) {
+        console.warn('[WeatherGPT Supabase] Session continuation failed:', err);
+      }
+    }
+
     async function handleUserQuery(questionText) {
       if (!questionText || state.isProcessing) return;
 
       state.isProcessing = true;
       inputBar.setDisabled(true);
 
-      // 1. Add user message to chat
-      const userRow = chatView.addUserMessage(questionText, state.location);
+      // Collect recent conversation context before adding new question
+      const recentHistory = chatView.getRecentConversationHistory ? chatView.getRecentConversationHistory(6) : [];
 
-      // 2. Show loading animation
+      // 1. Add user message to UI
+      chatView.addUserMessage(questionText, state.location);
+
+      // 2. Ensure active Supabase chat session exists
+      try {
+        if (!state.currentSessionId) {
+          const newSession = await createChatSession(questionText);
+          if (newSession && newSession.id) {
+            state.currentSessionId = newSession.id;
+          }
+        }
+
+        // 3. Persist user message in Supabase
+        if (state.currentSessionId) {
+          await saveChatMessage({
+            sessionId: state.currentSessionId,
+            role: 'user',
+            message: questionText,
+            language: state.language
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[WeatherGPT Supabase] Session/message save error:', dbErr.message);
+      }
+
+      // 4. Show loading animation
       chatView.showLoadingState();
 
       try {
+        // 5. POST /api/ask with location and conversational context in active language
         const result = await askQuestion({
           question: questionText,
           location: state.location,
-          language: state.language
+          coordinates: state.coordinates,
+          language: state.language,
+          conversation_context: recentHistory
         });
 
+        // 6. Hide loading & present localized answer with real telemetry
         chatView.hideLoadingState();
-        const assistantRow = chatView.addAssistantMessage(result.answer, result.language, result.isDemo, {
+        chatView.addAssistantMessage(result.answer, result.language || state.language, result.isDemo, {
           question: questionText,
-          location: state.location
+          location: state.location,
+          weatherData: state.weatherData
         });
 
-        // Remember this turn so a future language switch can re-render it
-        conversationHistory.push({
-          originalQuestion: questionText,
-          location: state.location,
-          userRow,
-          assistantRow
-        });
+        // 7. Persist assistant response in Supabase
+        if (state.currentSessionId && !result.isDemo) {
+          try {
+            await saveChatMessage({
+              sessionId: state.currentSessionId,
+              role: 'assistant',
+              message: result.answer,
+              language: result.language || state.language
+            });
+          } catch (dbErr) {
+            console.warn('[WeatherGPT Supabase] Assistant message save error:', dbErr.message);
+          }
+        }
+
+        // Sync detected language from Gemini to UI state & input bar
+        if (result.language && result.language !== state.language) {
+          state.language = result.language;
+          headerComponent.setActiveLanguage(result.language);
+          inputBar.setLanguage(result.language);
+          setAppLanguage(result.language);
+        }
 
         if (result.isDemo && !sessionStorage.getItem('demo_notified')) {
           toasts.showWarning('Backend not detected on :8000. Displaying simulated response adhering to api-contract.', 'Demo Mode Active');
@@ -239,10 +360,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // ── Weather Reload ───────────────────────────────────────────────────
     async function reloadWeatherData() {
       try {
-        const data = await fetchWeather(state.location);
+        const data = await fetchWeather(state.location, state.coordinates);
         state.weatherData = data;
         weatherWidget.update(data);
       } catch (err) {
@@ -251,6 +371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Check Backend Connection in background
+  // Check Backend Connection immediately and continuously monitor health
   await checkBackendConnection();
+  setInterval(checkBackendConnection, 3500);
 });

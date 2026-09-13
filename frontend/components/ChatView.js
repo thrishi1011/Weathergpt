@@ -2,18 +2,12 @@
  * ChatView Component
  * Manages the message stream, speech readout triggers, copy actions,
  * quick starter questions, and humanoid direct response cards with SVG charts.
- * Mode-switch shortcuts removed — app is chat-only.
- *
- * Rows returned by addUserMessage / addAssistantMessage can later be handed
- * back to updateUserMessage / updateAssistantMessage so that switching the
- * global language can re-render earlier turns in the new language, in place,
- * without losing the conversation.
  */
 
 import { speechService } from '../services/speech.js';
 import { ChartEngine } from './ChartEngine.js';
 
-export function createChatView({ onSuggestionClick }) {
+export function createChatView({ onSuggestionClick, onSwitchMode }) {
   const container = document.createElement('div');
   container.className = 'chat-messages-container';
   container.id = 'chat-messages-viewport';
@@ -33,19 +27,19 @@ export function createChatView({ onSuggestionClick }) {
         <div class="suggestion-prompts-grid" id="suggestion-prompts">
           <button type="button" class="suggestion-pill-card" data-prompt="Will it rain today?">
             <span class="suggestion-pill-icon">🌧️</span>
-            <span class="suggestion-pill-text">Will it rain today?</span>
+            <span class="suggestion-pill-text">"Will it rain today?"</span>
           </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Will it rain tomorrow?">
-            <span class="suggestion-pill-icon">🌦️</span>
-            <span class="suggestion-pill-text">Will it rain tomorrow?</span>
+          <button type="button" class="suggestion-pill-card" data-prompt="I am a fisherman, is it safe to go out to sea today?">
+            <span class="suggestion-pill-icon">🎣</span>
+            <span class="suggestion-pill-text">"Is it safe for fishing / sea?"</span>
           </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Should I spray pesticide today?">
+          <button type="button" class="suggestion-pill-card" data-prompt="Can we do outdoor construction or painting work today?">
+            <span class="suggestion-pill-icon">🏗️</span>
+            <span class="suggestion-pill-text">"Outdoor construction / work?"</span>
+          </button>
+          <button type="button" class="suggestion-pill-card" data-prompt="Should I spray pesticide on my crops today?">
             <span class="suggestion-pill-icon">🌾</span>
-            <span class="suggestion-pill-text">Should I spray pesticide today?</span>
-          </button>
-          <button type="button" class="suggestion-pill-card" data-prompt="Show me the 24-hour temperature and rain graph.">
-            <span class="suggestion-pill-icon">📊</span>
-            <span class="suggestion-pill-text">Show 24-hour rain graph</span>
+            <span class="suggestion-pill-text">"Should I spray pesticide?"</span>
           </button>
         </div>
       </div>
@@ -74,27 +68,16 @@ export function createChatView({ onSuggestionClick }) {
   }
 
   /**
-   * Add a message sent by the user. Returns the row element so it can be
-   * passed back to updateUserMessage later (e.g. on a language switch).
+   * Add a message sent by the user
    */
   function addUserMessage(text, location = '') {
     clearEmptyStateIfNeeded();
 
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const row = document.createElement('div');
     row.className = 'message-row user-row';
-    row.dataset.timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    row.dataset.location = location || '';
+    row.dataset.originalText = text;
 
-    renderUserRowContent(row, text);
-
-    container.appendChild(row);
-    scrollToBottom();
-    return row;
-  }
-
-  function renderUserRowContent(row, text) {
-    const timeString = row.dataset.timeString;
-    const location = row.dataset.location;
     row.innerHTML = `
       <div class="message-avatar user-avatar" title="You">👤</div>
       <div class="message-bubble-wrapper">
@@ -106,29 +89,6 @@ export function createChatView({ onSuggestionClick }) {
         </div>
       </div>
     `;
-  }
-
-  /**
-   * Re-render an existing user row with new (e.g. translated) text,
-   * keeping its original timestamp and location.
-   */
-  function updateUserMessage(row, text) {
-    if (!row || !row.isConnected) return;
-    renderUserRowContent(row, text);
-  }
-
-  /**
-   * Add assistant response bubble with Humanoid structuring. Returns the
-   * row element so it can be passed back to updateAssistantMessage later.
-   */
-  function addAssistantMessage(answerText, language = 'en', isDemo = false, options = {}) {
-    clearEmptyStateIfNeeded();
-
-    const row = document.createElement('div');
-    row.className = 'message-row assistant-row';
-    row.dataset.timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    renderAssistantRowContent(row, answerText, language, isDemo, options);
 
     container.appendChild(row);
     scrollToBottom();
@@ -136,105 +96,51 @@ export function createChatView({ onSuggestionClick }) {
   }
 
   /**
-   * Re-render an existing assistant row with a freshly-fetched answer
-   * (e.g. the same question re-asked in a newly selected language),
-   * keeping its original timestamp.
+   * Add assistant response bubble with Humanoid structuring
    */
-  function updateAssistantMessage(row, answerText, language = 'en', isDemo = false, options = {}) {
-    if (!row || !row.isConnected) return;
-    renderAssistantRowContent(row, answerText, language, isDemo, options);
-  }
+  function addAssistantMessage(answerText, language = 'en', isDemo = false, options = {}) {
+    clearEmptyStateIfNeeded();
 
-  function renderAssistantRowContent(row, answerText, language, isDemo, options) {
-    const timeString = row.dataset.timeString;
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const row = document.createElement('div');
+    row.className = 'message-row assistant-row';
+    row.dataset.originalText = answerText;
+    row.dataset.originalLanguage = language;
+    row.dataset.currentLanguage = language;
+    row.dataset[`trans_${language}`] = answerText;
 
-    // Parse humanoid components if question relates to "rain" or "weather"
-    const isRainQuestion = (answerText || '').toLowerCase().includes('rain') ||
-                           (options.question || '').toLowerCase().includes('rain') ||
-                           (options.question || '').toLowerCase().includes('today') ||
-                           (options.question || '').toLowerCase().includes('tomorrow');
+    // Optional telemetry snippet if real weatherData was passed in options
+    const weatherData = options.weatherData;
+    let telemetrySnippetHtml = '';
 
-    let humanoidCardHtml = '';
-    let speechPlainText = answerText;
+    if (weatherData && weatherData.temperature != null) {
+      const rainProb = weatherData.rain_probability != null ? `${weatherData.rain_probability}%` : '--';
+      const cond = weatherData.weather_condition || 'Moderate';
+      const temp = `${weatherData.temperature.toFixed(1)}°C`;
+      const loc = weatherData.location || options.location || '';
 
-    if (isRainQuestion) {
-      const willRain = !answerText.toLowerCase().includes('no rain');
-      const probability = willRain ? 78 : 12;
-
-      // Chart for humanoid answer
-      const chartHtml = ChartEngine.renderHourlyRainChart({
-        hours: ['12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'],
-        probabilities: willRain ? [25, 45, 82, 75, 40, 15] : [10, 12, 15, 10, 5, 5],
-        temps: [31, 30, 27, 26, 26, 25]
-      });
-
-      speechPlainText = willRain
-        ? `Yes, it will definitely rain. There is a 78 percent chance of thunderstorm showers, most active between 3:30 PM and 6:00 PM. Hang your laundry early, and avoid highway driving during the afternoon squall.`
-        : `No rain is expected today. Skies are clear with pleasant weather.`;
-
-      humanoidCardHtml = `
-        <div class="humanoid-verdict-card ${willRain ? 'verdict-rain-yes' : 'verdict-rain-no'}">
-          <!-- Direct Verdict Headline -->
-          <div class="verdict-header-row">
-            <span class="verdict-emoji">${willRain ? '🌧️' : '☀️'}</span>
-            <div class="verdict-text-group">
-              <h3 class="verdict-title">${willRain ? 'Yes, it will definitely rain today.' : 'No rain is expected today.'}</h3>
-              <span class="verdict-likelihood-tag">
-                Likelihood: <strong>${probability}%</strong> • Expected Window: <strong>3:30 PM – 6:00 PM</strong>
-              </span>
-            </div>
-          </div>
-
-          <!-- Answer Summary -->
-          <p class="humanoid-main-text">${escapeHtml(answerText)}</p>
-
-          <!-- Actionable Dos and Don'ts Checklist -->
-          <div class="humanoid-actions-grid">
-            <div class="action-column col-can-do">
-              <div class="action-col-header">
-                <span>✅ What you CAN do:</span>
-              </div>
-              <ul class="action-items-list">
-                <li>Finish morning outdoor chores and travel before 2:00 PM.</li>
-                <li>Keep field drainage channels open to absorb natural rain.</li>
-                <li>Carry a light umbrella if returning home in the evening.</li>
-              </ul>
-            </div>
-
-            <div class="action-column col-avoid">
-              <div class="action-col-header">
-                <span>❌ What to AVOID:</span>
-              </div>
-              <ul class="action-items-list">
-                <li>Avoid hanging laundry outside after 1:00 PM.</li>
-                <li>Do NOT spray pesticides or fertilizers (will wash away).</li>
-                <li>Avoid two-wheeler highway travel during 3:30 PM – 6:00 PM squalls.</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Embedded High-Precision SVG Chart -->
-          <div class="humanoid-chart-container">
-            <div class="chart-caption-bar">
-              <span>📊 Rain Probability &amp; Temperature Curve</span>
-            </div>
-            ${chartHtml}
-          </div>
-        </div>
-      `;
-    } else {
-      humanoidCardHtml = `
-        <div class="standard-answer-body">
-          <p>${escapeHtml(answerText).replace(/\n/g, '<br/>')}</p>
+      telemetrySnippetHtml = `
+        <div class="assistant-telemetry-badge">
+          <span class="telemetry-pill">📍 ${escapeHtml(loc)}</span>
+          <span class="telemetry-pill">🌡️ ${temp}</span>
+          <span class="telemetry-pill">🌧️ ${rainProb} Rain</span>
+          <span class="telemetry-pill">⛅ ${escapeHtml(cond)}</span>
         </div>
       `;
     }
+
+    const contentHtml = `
+      <div class="standard-answer-body">
+        <p class="assistant-answer-text">${escapeHtml(answerText).replace(/\n/g, '<br/>')}</p>
+        ${telemetrySnippetHtml}
+      </div>
+    `;
 
     row.innerHTML = `
       <div class="message-avatar assistant-avatar" title="WeatherGPT">⚡</div>
       <div class="message-bubble-wrapper">
         <div class="message-bubble assistant-bubble">
-          ${humanoidCardHtml}
+          ${contentHtml}
         </div>
         <div class="message-meta-row">
           <span>${timeString}</span>
@@ -249,11 +155,12 @@ export function createChatView({ onSuggestionClick }) {
       </div>
     `;
 
-    // Copy to clipboard listener
+    // Copy to clipboard listener (always copies current translated text)
     const copyBtn = row.querySelector('.copy-btn');
     copyBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(speechPlainText);
+        const textToCopy = row.querySelector('.assistant-answer-text')?.innerText || answerText;
+        await navigator.clipboard.writeText(textToCopy);
         copyBtn.textContent = '✅ Copied';
         setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
       } catch (err) {
@@ -261,9 +168,12 @@ export function createChatView({ onSuggestionClick }) {
       }
     });
 
-    // TTS Voice Playback listener
+    // TTS Voice Playback listener (always speaks current translated text in current language)
     const speakBtn = row.querySelector('.speak-btn');
     speakBtn.addEventListener('click', () => {
+      const textToSpeak = row.querySelector('.assistant-answer-text')?.innerText || answerText;
+      const activeSpeakLang = row.dataset.currentLanguage || language;
+
       if (currentlyPlayingBtn === speakBtn) {
         speechService.stopSpeaking();
         speakBtn.classList.remove('speaking');
@@ -282,8 +192,8 @@ export function createChatView({ onSuggestionClick }) {
       currentlyPlayingBtn = speakBtn;
 
       speechService.speakText({
-        text: speechPlainText,
-        language: language,
+        text: textToSpeak,
+        language: activeSpeakLang,
         onStart: () => {
           speakBtn.classList.add('speaking');
         },
@@ -294,6 +204,101 @@ export function createChatView({ onSuggestionClick }) {
         }
       });
     });
+
+    container.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  const translationCache = new Map();
+
+  /**
+   * Translate every visible user question and assistant answer in the conversation to targetLang
+   */
+  async function translateAllVisibleMessages(targetLang, batchTranslateFunc) {
+    const rows = container.querySelectorAll('.message-row');
+    if (rows.length === 0) return;
+
+    const itemsToFetch = [];
+    const targetsToFetch = [];
+
+    rows.forEach(row => {
+      const isUser = row.classList.contains('user-row');
+      const textEl = isUser ? row.querySelector('.user-bubble') : row.querySelector('.assistant-answer-text');
+      if (!textEl) return;
+
+      const currentText = (textEl.innerText || textEl.textContent || '').trim();
+      const baseText = row.dataset.originalText || currentText;
+      if (!row.dataset.originalText) {
+        row.dataset.originalText = baseText;
+      }
+
+      // Check if we already have this exact target language cached on the row or global cache
+      const cachedLangText = row.dataset[`trans_${targetLang}`];
+      const cacheKey = `${targetLang}:${baseText}`;
+
+      if (cachedLangText) {
+        if (isUser) {
+          textEl.textContent = cachedLangText;
+        } else {
+          textEl.innerHTML = escapeHtml(cachedLangText).replace(/\n/g, '<br/>');
+        }
+        row.dataset.currentLanguage = targetLang;
+      } else if (translationCache.has(cacheKey)) {
+        const cached = translationCache.get(cacheKey);
+        row.dataset[`trans_${targetLang}`] = cached;
+        if (isUser) {
+          textEl.textContent = cached;
+        } else {
+          textEl.innerHTML = escapeHtml(cached).replace(/\n/g, '<br/>');
+        }
+        row.dataset.currentLanguage = targetLang;
+      } else {
+        // Need translation from baseText to targetLang
+        itemsToFetch.push(baseText);
+        targetsToFetch.push({ row, textEl, isUser, cacheKey, baseText });
+      }
+    });
+
+    if (itemsToFetch.length > 0 && typeof batchTranslateFunc === 'function') {
+      try {
+        const translatedArray = await batchTranslateFunc(itemsToFetch, targetLang);
+        targetsToFetch.forEach((target, index) => {
+          const trans = translatedArray[index] || itemsToFetch[index];
+          translationCache.set(target.cacheKey, trans);
+          target.row.dataset[`trans_${targetLang}`] = trans;
+          if (target.isUser) {
+            target.textEl.textContent = trans;
+          } else {
+            target.textEl.innerHTML = escapeHtml(trans).replace(/\n/g, '<br/>');
+          }
+          target.row.dataset.currentLanguage = targetLang;
+        });
+      } catch (err) {
+        console.warn('ChatView message translation error:', err);
+      }
+    }
+  }
+
+  /**
+   * Update an existing user message row with translated text
+   */
+  function updateUserMessage(row, newText) {
+    if (!row || !row.isConnected) return;
+    const bubble = row.querySelector('.user-bubble');
+    if (bubble) bubble.textContent = newText;
+  }
+
+  /**
+   * Update an existing assistant message row with translated text
+   */
+  function updateAssistantMessage(row, answerText, language = 'en', isDemo = false, options = {}) {
+    if (!row || !row.isConnected) return;
+    const answerP = row.querySelector('.assistant-answer-text');
+    if (answerP) {
+      answerP.innerHTML = escapeHtml(answerText).replace(/\n/g, '<br/>');
+      row.dataset.currentLanguage = language;
+    }
   }
 
   /**
@@ -329,14 +334,56 @@ export function createChatView({ onSuggestionClick }) {
     typingRow = null;
   }
 
+  function clearMessages() {
+    hasMessages = false;
+    container.innerHTML = '';
+    renderEmptyState();
+  }
+
+  function loadSessionMessages(messages = [], location = '') {
+    hasMessages = false;
+    container.innerHTML = '';
+    if (!messages || messages.length === 0) {
+      renderEmptyState();
+      return;
+    }
+
+    messages.forEach(msg => {
+      if (msg.role === 'user') {
+        addUserMessage(msg.message, location);
+      } else if (msg.role === 'assistant') {
+        addAssistantMessage(msg.message, msg.language || 'en', false);
+      }
+    });
+  }
+
+  function getRecentConversationHistory(maxTurns = 6) {
+    const bubbles = container.querySelectorAll('.message-row');
+    const history = [];
+    bubbles.forEach(row => {
+      if (row.classList.contains('user-row')) {
+        const text = row.querySelector('.user-bubble')?.innerText?.trim();
+        if (text) history.push({ role: 'user', content: text });
+      } else if (row.classList.contains('assistant-row')) {
+        const text = row.querySelector('.assistant-answer-text')?.innerText?.trim();
+        if (text) history.push({ role: 'assistant', content: text });
+      }
+    });
+    return history.slice(-maxTurns);
+  }
+
   return {
     element: container,
     addUserMessage,
     addAssistantMessage,
     updateUserMessage,
     updateAssistantMessage,
+    translateAllVisibleMessages,
     showLoadingState,
-    hideLoadingState
+    hideLoadingState,
+    clearMessages,
+    loadSessionMessages,
+    getRecentConversationHistory
   };
 }
 

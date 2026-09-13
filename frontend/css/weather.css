@@ -31,57 +31,6 @@
   border-color: var(--border-glow);
 }
 
-/* Current (auto-detected) Location Bubble */
-.current-location-bubble {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  align-self: flex-start;
-  max-width: 100%;
-  background: rgba(6, 182, 212, 0.1);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  border-radius: var(--radius-full);
-  padding: 0.3rem 0.75rem;
-  font-size: 0.72rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.current-location-bubble:hover {
-  background: rgba(6, 182, 212, 0.18);
-  border-color: var(--accent-cyan);
-}
-
-[data-theme="light"] .current-location-bubble {
-  background: rgba(2, 132, 199, 0.08);
-  border-color: rgba(2, 132, 199, 0.25);
-}
-
-[data-theme="light"] .current-location-bubble:hover {
-  background: rgba(2, 132, 199, 0.14);
-}
-
-.current-location-icon {
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.current-location-label {
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-
-.current-location-value {
-  font-weight: 700;
-  color: var(--accent-cyan);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .section-label {
   font-size: 0.75rem;
   font-weight: 600;
@@ -177,6 +126,39 @@
 
 .location-gps-btn:hover {
   color: var(--accent-cyan);
+}
+
+/* Quick Location Chips */
+.quick-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.location-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.location-chip:hover {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.location-chip.active {
+  background: var(--grad-primary);
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px var(--accent-cyan-glow);
 }
 
 /* Weather Telemetry Card */
@@ -445,6 +427,26 @@
   gap: 0.5rem;
   font-size: 0.78rem;
   color: var(--accent-emerald);
+}
+
+.weather-data-source-footer {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.weather-data-source-footer strong {
+  color: var(--text-main);
+}
+
+.source-sep {
+  opacity: 0.5;
 }
 
 @media (max-width: 768px) {

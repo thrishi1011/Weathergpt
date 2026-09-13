@@ -1,9 +1,3 @@
-/**
- * SplashScreen Component
- * Displays an eye-catching, unique animated WeatherGPT logo, tagline,
- * and smooth transition into the chat interface.
- */
-
 import { bindLiveDate } from '../utils/dateTime.js';
 
 export function createSplashScreen({ onContinue }) {
@@ -102,7 +96,7 @@ export function createSplashScreen({ onContinue }) {
       <!-- Launch Action & Auto-Timer -->
       <div class="splash-action-container">
         <button type="button" class="btn-splash-launch" id="btn-splash-launch">
-          <span>Start Chatting</span>
+          <span>Enter WeatherGPT</span>
           <span class="arrow-icon">➔</span>
         </button>
 
@@ -114,7 +108,8 @@ export function createSplashScreen({ onContinue }) {
     </div>
   `;
 
-  const stopDateBinding = bindLiveDate(container.querySelector('#splash-date-text'));
+  const dateTextEl = container.querySelector('#splash-date-text');
+  const stopDateBinding = bindLiveDate(dateTextEl);
 
   let transitioned = false;
   function triggerContinue() {
@@ -145,6 +140,7 @@ export function createSplashScreen({ onContinue }) {
   return {
     element: container,
     destroy: () => {
+      stopDateBinding();
       if (container.parentNode) {
         container.parentNode.removeChild(container);
       }

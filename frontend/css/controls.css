@@ -1,49 +1,24 @@
 /* ==========================================================================
-   WeatherGPT - Controls, Input Bar, Language Pills & Error Toasts
+   WeatherGPT - Controls, Input Bar & Voice
    ========================================================================== */
 
 .chat-controls-wrapper {
-  padding: 1rem 1.5rem 1.25rem 1.5rem;
+  padding: 0.75rem 1.5rem 1rem 1.5rem;
   background: var(--bg-surface);
   backdrop-filter: var(--glass-blur);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
   z-index: 10;
 }
 
-/* Keyboard Hint Row (language selection now lives globally in the Header) */
-.controls-top-row {
+/* Hint row at bottom: keyboard hint + detected language badge */
+.controls-hint-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.lang-pill-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  padding: 0.2rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.lang-pill-btn:hover {
-  border-color: var(--accent-cyan);
-  color: var(--text-main);
-}
-
-.lang-pill-btn.active {
-  background: var(--accent-cyan);
-  border-color: var(--accent-cyan);
-  color: #000000;
-  box-shadow: 0 2px 8px var(--accent-cyan-glow);
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .input-hint-text {
@@ -51,11 +26,33 @@
   color: var(--text-dim);
 }
 
-@media (max-width: 640px) {
-  .input-hint-text {
-    display: none;
-  }
+.lang-indicator {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.65rem;
+  transition: all 0.2s;
+  user-select: none;
+  cursor: pointer;
 }
+
+.lang-indicator:hover {
+  background: rgba(6, 182, 212, 0.16);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+}
+
+.lang-indicator:active {
+  transform: scale(0.97);
+}
+
+@media (max-width: 640px) {
+  .input-hint-text { display: none; }
+}
+
 
 /* Chat Input Bar Form */
 .input-form-container {
@@ -133,32 +130,16 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-subtle);
-  /* Use the high-contrast main text color (not the fainter muted tone) so the
-     SVG icon below reads clearly against both the dark and light theme. */
-  color: var(--text-main);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 1.15rem;
   transition: all var(--transition-fast);
   position: relative;
-}
-
-/* The icon is an inline SVG that inherits the button's `color` via
-   stroke="currentColor" - this is what actually keeps it visible in both
-   themes, since a color emoji glyph ignores CSS color entirely. */
-.mic-icon-svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-[data-theme="light"] .mic-toggle-btn {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(15, 23, 42, 0.18);
 }
 
 .mic-toggle-btn:hover {
@@ -221,6 +202,13 @@
 
 .voice-status-bar.active {
   display: flex;
+}
+
+.voice-status-bar.ready {
+  display: flex;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
 }
 
 .voice-wave-indicator {

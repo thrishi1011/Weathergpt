@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeatherGPT — Voice Module Standalone Test</title>
+  <link rel="stylesheet" href="./components/VoiceControls.css">
+  <style>
+    body {
+      background: #090d16;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 30px 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .page-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .page-header h1 {
+      margin: 0 0 8px 0;
+      font-size: 1.75rem;
+      background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .page-header p {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+    .test-panel {
+      margin-top: 24px;
+      max-width: 580px;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 0.85rem;
+    }
+    .test-panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 0.95rem;
+      color: #38bdf8;
+    }
+    .test-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .btn-test {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .btn-test:hover {
+      background: #334155;
+    }
+    .log-box {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 10px;
+      height: 120px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #a7f3d0;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>WeatherGPT Voice Module</h1>
+    <p>Speech-to-Text (Gemini AI + Browser Fallback) &amp; Hybrid Text-to-Speech</p>
+  </div>
+
+  <div id="voice-root">
+    <!-- Standalone HTML/JS Implementation matching VoiceControls -->
+    <div class="weathergpt-voice-container">
+      <div class="voice-header">
+        <div class="voice-title">
+          <span>🎙️</span> WeatherGPT Voice
+        </div>
+        <div class="voice-lang-selector" id="lang-selector">
+          <button class="lang-btn active" data-lang="auto">🌐 Auto</button>
+          <button class="lang-btn" data-lang="te-IN">తెలుగు</button>
+          <button class="lang-btn" data-lang="hi-IN">हिंदी</button>
+          <button class="lang-btn" data-lang="en-IN">English</button>
+          <button class="lang-btn" data-lang="ta-IN">தமிழ்</button>
+          <button class="lang-btn" data-lang="kn-IN">ಕನ್ನಡ</button>
+        </div>
+      </div>
+
+      <div class="voice-status-badge idle" id="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Ready to Listen</span>
+      </div>
+
+      <div class="voice-action-center">
+        <div class="mic-button-wrapper">
+          <div class="mic-pulse-wave" id="mic-pulse" style="display: none;"></div>
+          <button class="mic-btn idle" id="mic-btn" type="button" aria-label="Mic">
+            <svg id="mic-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+            </svg>
+          </button>
+        </div>
+        <div class="mic-caption" id="mic-caption">Click the microphone and ask a weather question</div>
+      </div>
+
+      <div class="voice-content-box" id="content-box" style="display: none;">
+        <div class="voice-turn" id="turn-question" style="display: none;">
+          <div class="turn-label">Your Question:</div>
+          <div class="turn-text" id="text-question"></div>
+        </div>
+        <div class="voice-turn" id="turn-answer" style="display: none;">
+          <div class="turn-label">
+            <span>WeatherGPT:</span>
+            <button class="stop-btn" id="btn-stop-speech" type="button">Stop Audio</button>
+          </div>
+          <div class="turn-text" id="text-answer"></div>
+        </div>
+      </div>
+
+      <div class="voice-alert" id="alert-box" style="display: none;">
+        <span>⚠️</span>
+        <div id="alert-text"></div>
+      </div>
+
+      <div class="voice-notice" id="notice-box" style="display: none;">
+        <span id="notice-text"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-panel">
+    <h3>Direct Diagnostics & Capability Check</h3>
+    <div class="test-actions">
+      <button class="btn-test" id="btn-run-caps">Run Capability Check (L1)</button>
+      <button class="btn-test" id="test-tts-en">Speak English (Tier 1/2)</button>
+      <button class="btn-test" id="test-tts-hi">Speak Hindi (Tier 1/2)</button>
+      <button class="btn-test" id="test-tts-te">Speak Telugu (Tier 1/2)</button>
+      <button class="btn-test" id="test-voices">List Browser Voices</button>
+    </div>
+    <div class="log-box" id="log-box">Ready.</div>
+  </div>
+
+  <script type="module">
+    import { speechToText } from './stt/speechToText.js';
+    import { geminiSTT } from './stt/geminiSTT.js';
+    import { speak, stopSpeech } from './tts/ttsRouter.js';
+    import { askBackend } from './mock/mockAsk.js';
+    import { SUPPORTED_LANGUAGES, getBrowserCompatibilityNotice, getAvailableVoices } from './utils/languageSupport.js';
+    import { detectLanguage } from './utils/languageDetector.js';
+    import { runCapabilityCheck } from './tests/capabilityCheck.js';
+
+    let currentLang = 'auto';
+    let currentState = 'idle';
+
+    const statusBadge = document.getElementById('status-badge');
+    const statusText = document.getElementById('status-text');
+    const micBtn = document.getElementById('mic-btn');
+    const micPulse = document.getElementById('mic-pulse');
+    const micCaption = document.getElementById('mic-caption');
+    const contentBox = document.getElementById('content-box');
+    const turnQuestion = document.getElementById('turn-question');
+    const textQuestion = document.getElementById('text-question');
+    const turnAnswer = document.getElementById('turn-answer');
+    const textAnswer = document.getElementById('text-answer');
+    const alertBox = document.getElementById('alert-box');
+    const alertText = document.getElementById('alert-text');
+    const noticeBox = document.getElementById('notice-box');
+    const noticeText = document.getElementById('notice-text');
+    const btnStopSpeech = document.getElementById('btn-stop-speech');
+    const logBox = document.getElementById('log-box');
+
+    function log(msg) {
+      logBox.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logBox.textContent;
+    }
+
+    function updateNotice() {
+      if (currentLang === 'auto') {
+        noticeBox.style.display = 'none';
+        return;
+      }
+      const notice = getBrowserCompatibilityNotice(currentLang);
+      if (notice) {
+        noticeBox.style.display = 'block';
+        noticeText.textContent = `ℹ️ ${notice}`;
+      } else {
+        noticeBox.style.display = 'none';
+      }
+    }
+
+    function setUIState(state, info = '') {
+      currentState = state;
+      statusBadge.className = `voice-status-badge ${state}`;
+      micBtn.className = `mic-btn ${state}`;
+
+      if (state === 'idle') {
+        statusText.textContent = 'Ready to Listen';
+        micCaption.textContent = 'Click the microphone and ask a weather question';
+        micPulse.style.display = 'none';
+      } else if (state === 'listening') {
+        statusText.textContent = 'Listening... Speak now';
+        micCaption.textContent = 'Listening to your question...';
+        micPulse.style.display = 'block';
+      } else if (state === 'processing') {
+        statusText.textContent = 'Thinking...';
+        micCaption.textContent = 'Analyzing forecast...';
+        micPulse.style.display = 'none';
+      } else if (state === 'speaking') {
+        statusText.textContent = `Speaking ${info ? '(' + info + ')' : ''}`;
+        micCaption.textContent = 'Speaking answer...';
+        micPulse.style.display = 'none';
+      }
+    }
+
+    // Language Selector Buttons
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentLang = btn.getAttribute('data-lang');
+        stopSpeech();
+        speechToText.stopListening();
+        setUIState('idle');
+        alertBox.style.display = 'none';
+        updateNotice();
+        log(`Language switched to ${currentLang}`);
+      });
+    });
+
+    // Mic Click
+    micBtn.addEventListener('click', () => {
+      alertBox.style.display = 'none';
+
+      if (currentState === 'speaking') {
+        stopSpeech();
+        setUIState('idle');
+        return;
+      }
+
+      if (currentState === 'listening') {
+        geminiSTT.stopRecording();
+        speechToText.stopListening();
+        setUIState('idle');
+        return;
+      }
+
+      setUIState('listening');
+      contentBox.style.display = 'block';
+      turnQuestion.style.display = 'block';
+      textQuestion.textContent = '...';
+      turnAnswer.style.display = 'none';
+      textAnswer.textContent = '';
+
+
+      /**
+       * Common handler — called once a transcript + language is known,
+       * regardless of whether it came from Gemini or the browser STT.
+       */
+      async function handleTranscript(finalText, detectedLang, source) {
+        textQuestion.textContent = finalText;
+        setUIState('processing');
+        const srcLabel = source === 'gemini' ? '[Gemini STT]' : '[Browser STT]';
+        log(`${srcLabel} transcript: "${finalText}"`);
+        log(`${srcLabel} language: ${detectedLang}`);
+
+        try {
+          const effectiveLang = detectedLang || (currentLang === 'auto' ? 'en-IN' : currentLang);
+          const resp = await askBackend(finalText, 'Warangal', effectiveLang);
+          const replyLang = resp.language || effectiveLang;
+          const langLabel = SUPPORTED_LANGUAGES[replyLang]?.nativeLabel || replyLang;
+          log(`Backend Answer: "${resp.answer}"`);
+
+          turnAnswer.style.display = 'block';
+          const labelSpan = turnAnswer.querySelector('.turn-label span');
+          if (labelSpan) labelSpan.textContent = `WeatherGPT (${langLabel}):`;
+          textAnswer.textContent = resp.answer;
+
+          setUIState('speaking', 'initializing');
+
+          await speak(resp.answer, replyLang, {
+            onTierSelect: (tier) => {
+              const tierName = tier === 'edge' ? 'Edge Neural' : tier === 'cloud' ? 'Cloud Neural' : 'Native';
+              setUIState('speaking', `${langLabel} · ${tierName}`);
+              log(`TTS Engine: ${tierName} for [${replyLang}]`);
+            },
+            onEnd: () => {
+              setUIState('idle');
+              log('Speech playback completed.');
+            },
+            onError: (err) => {
+              setUIState('idle');
+              alertBox.style.display = 'flex';
+              alertText.textContent = err.message;
+              log(`TTS Error: ${err.message}`);
+            }
+          });
+        } catch (err) {
+          setUIState('idle');
+          alertBox.style.display = 'flex';
+          alertText.textContent = err.message;
+          log(`Ask Error: ${err.message}`);
+        }
+      }
+
+      /**
+       * Browser STT fallback — used when Gemini is unavailable or fails.
+       * Uses the existing speechToText module with language locked to currentLang.
+       */
+      function startBrowserSTT() {
+        const browserLang = (currentLang === 'auto') ? '' : currentLang; // '' = browser auto-detect
+        log('[Browser STT] Starting fallback...');
+        speechToText.startListening({
+          language: currentLang,
+          onInterim: (interim) => {
+            textQuestion.textContent = interim;
+          },
+          onResult: async (finalText) => {
+            // For browser STT, run heuristic language detection on the transcript if in auto mode
+            const detectedLang = currentLang === 'auto' ? detectLanguage(finalText) : currentLang;
+            await handleTranscript(finalText, detectedLang, 'browser');
+          },
+          onError: (err) => {
+            setUIState('idle');
+            alertBox.style.display = 'flex';
+            alertText.textContent = err.message;
+            log(`Browser STT Error: ${err.message}`);
+          },
+          onEnd: () => {
+            if (currentState === 'listening') {
+              setUIState('idle');
+            }
+          }
+        });
+      }
+
+      /**
+       * Try Gemini STT first.
+       * On failure, automatically fall back to browser STT.
+       */
+      geminiSTT.startRecording({
+        onStart: () => {
+          log('[Gemini STT] Recording started...');
+        },
+        onInterim: (statusMsg) => {
+          textQuestion.textContent = statusMsg;
+        },
+        onResult: async (result) => {
+          // result = { text, language, source: 'gemini' }
+          const effectiveLang = currentLang === 'auto' ? result.language : currentLang;
+          await handleTranscript(result.text, effectiveLang, result.source);
+        },
+        onError: async (err) => {
+          log(`[Gemini STT] Error: ${err.message} — falling back to browser STT`);
+          // Only fall back if we're still in listening state
+          if (currentState === 'listening') {
+            startBrowserSTT();
+          }
+        },
+        onEnd: () => {
+          if (currentState === 'listening') {
+            setUIState('idle');
+          }
+        }
+      });
+    });
+
+    btnStopSpeech.addEventListener('click', () => {
+      stopSpeech();
+      geminiSTT.abort();
+      speechToText.stopListening();
+      setUIState('idle');
+      log('Speech stopped by user.');
+    });
+
+    // Test buttons
+    document.getElementById('btn-run-caps').addEventListener('click', () => {
+      log('Running Browser Capability Check (Level 1)...');
+      const report = runCapabilityCheck();
+      log(`STT Support: ${report.stt.apiAvailable ? 'Available (' + report.stt.engine + ')' : 'NOT AVAILABLE'}`);
+      if (report.tts.voices) {
+        report.tts.voices.forEach(v => {
+          log(`[${v.code}] ${v.language} -> ${v.nativeVoiceFound ? 'Native (' + v.matchedVoiceName + ')' : 'Fallback Required (' + v.recommendedTier + ')'}`);
+        });
+      }
+    });
+
+    document.getElementById('test-tts-en').addEventListener('click', async () => {
+      log('Testing English TTS...');
+      try {
+        await speak('The weather in Warangal is currently 31 degrees Celsius.', 'en-IN', {
+          onTierSelect: (tier) => log(`English TTS using: ${tier}`)
+        });
+      } catch (e) { log(`Error: ${e.message}`); }
+    });
+
+    document.getElementById('test-tts-hi').addEventListener('click', async () => {
+      log('Testing Hindi TTS...');
+      try {
+        await speak('वारंगल में आज का तापमान इकतीस डिग्री सेल्सियस है।', 'hi-IN', {
+          onTierSelect: (tier) => log(`Hindi TTS using: ${tier}`)
+        });
+      } catch (e) { log(`Error: ${e.message}`); }
+    });
+
+    document.getElementById('test-tts-te').addEventListener('click', async () => {
+      log('Testing Telugu TTS...');
+      try {
+        await speak('వరంగల్‌లో రేపు వర్షం పడే అవకాశం ఉంది. బయటకు వెళ్లేటప్పుడు గొడుగు తీసుకెళ్లడం మంచిది.', 'te-IN', {
+          onTierSelect: (tier) => log(`Telugu TTS using: ${tier}`)
+        });
+      } catch (e) { log(`Error: ${e.message}`); }
+    });
+
+    document.getElementById('test-voices').addEventListener('click', async () => {
+      const voices = await getAvailableVoices();
+      log(`Found ${voices.length} native voices.`);
+      const sample = voices.slice(0, 8).map(v => `${v.name} (${v.lang})`).join(', ');
+      log(`Voices sample: ${sample || 'None loaded'}`);
+    });
+
+    updateNotice();
+  </script>
+</body>
+</html>

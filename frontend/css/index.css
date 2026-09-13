@@ -138,54 +138,68 @@ body::before {
   z-index: 20;
 }
 
-/* Global Language Section - top strip of the header, present on every screen */
+/* Global Language Bar */
 .header-language-bar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  padding: 0.5rem 1.75rem;
-  background: var(--bg-surface-elevated);
+  gap: 0.65rem;
+  padding: 0.45rem 1.75rem;
+  background: rgba(0, 0, 0, 0.25);
   border-bottom: 1px solid var(--border-subtle);
   font-size: 0.78rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.header-language-bar::-webkit-scrollbar {
+  display: none;
+}
+
+[data-theme="light"] .header-language-bar {
+  background: rgba(241, 245, 249, 0.85);
 }
 
 .language-bar-icon {
   font-size: 0.95rem;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
 .language-bar-label {
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  flex-shrink: 0;
 }
 
 .language-bar-pills {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
 }
 
-.language-bar-pills .lang-pill-btn {
-  padding: 0.28rem 0.75rem;
-  border-radius: var(--radius-full);
+.lang-pill-btn {
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--text-muted);
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.65rem;
   font-size: 0.75rem;
   font-weight: 600;
+  color: var(--text-muted);
   cursor: pointer;
+  white-space: nowrap;
   transition: all var(--transition-fast);
 }
 
-.language-bar-pills .lang-pill-btn:hover {
-  border-color: var(--border-glow);
-  color: var(--text-main);
+.lang-pill-btn:hover {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
 }
 
-.language-bar-pills .lang-pill-btn.active {
+.lang-pill-btn.active {
   background: var(--grad-primary);
   border-color: transparent;
   color: #ffffff;
@@ -198,7 +212,30 @@ body::before {
   justify-content: space-between;
   flex-wrap: wrap;
   row-gap: 0.5rem;
-  padding: 0.85rem 1.75rem;
+  padding: 0.65rem 1.75rem;
+}
+
+.header-date-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.header-date-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.header-date-text {
+  letter-spacing: 0.01em;
 }
 
 .brand-section {
@@ -249,33 +286,32 @@ body::before {
   text-transform: uppercase;
 }
 
-.header-date-display {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.85rem;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.header-date-icon {
-  font-size: 0.9rem;
-  line-height: 1;
-}
-
-.header-date-text {
-  letter-spacing: 0.01em;
-}
-
 .header-status-group {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.recovery-link-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.recovery-link-header-btn:hover {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: var(--accent-cyan);
+  color: var(--text-main);
+  transform: translateY(-1px);
 }
 
 .connection-pill {
@@ -298,10 +334,17 @@ body::before {
   transform: translateY(-1px);
 }
 
+.connection-pill.connected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: var(--accent-emerald);
+}
+
+.connection-pill.offline,
 .connection-pill.offline-mode {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.35);
-  color: var(--accent-amber);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
 }
 
 .status-dot {
@@ -337,7 +380,7 @@ body::before {
 .main-layout {
   display: grid;
   grid-template-columns: 380px 1fr;
-  height: 100%;
+  height: calc(100vh - 66px);
   overflow: hidden;
   position: relative;
 }
@@ -356,19 +399,10 @@ body::before {
   .main-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
-    height: 100%;
+    height: calc(100dvh - 60px);
     overflow-y: auto;
   }
-  .header-main-row {
+  .app-header {
     padding: 0.65rem 1rem;
-  }
-  .header-language-bar {
-    padding: 0.45rem 1rem;
-  }
-  .header-date-display {
-    order: 3;
-    margin-left: auto;
-    font-size: 0.7rem;
-    padding: 0.3rem 0.65rem;
   }
 }

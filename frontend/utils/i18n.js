@@ -18,10 +18,13 @@ const T = {
     'Agro & Atmospheric Intelligence':'వ్యవసాయ & వాతావరణ మేధస్సు',
     'AI-Powered Agro-Meteorological & Atmospheric Intelligence':'AI ఆధారిత వ్యవసాయ-వాతావరణ & వాతావరణ మేధస్సు',
     'Start Chatting':'చాట్ ప్రారంభించండి', 'Click anywhere or wait to enter...':'ఎక్కడైనా క్లిక్ చేయండి లేదా ప్రవేశించడానికి వేచి ఉండండి...',
+    'Enter WeatherGPT ➔':'WeatherGPT లోకి ప్రవేశించండి ➔',
+    'Save recovery link':'రికవరీ లింక్‌ను సేవ్ చేయండి', '🔗 Save recovery link':'🔗 రికవరీ లింక్‌ను సేవ్ చేయండి',
     'What would you like to know?':'మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?', 'Switch to specialized mode:':'ప్రత్యేక మోడ్‌కు మారండి:',
     'Travelling Mode':'ప్రయాణ మోడ్','Farming Mode':'వ్యవసాయ మోడ్','Outdoor Mode':'బయటి కార్యకలాపాల మోడ్',
     'Will it rain today?':'ఈరోజు వర్షం పడుతుందా?','Will it rain tomorrow?':'రేపు వర్షం పడుతుందా?',
     'Should I spray pesticide today?':'ఈరోజు పురుగుమందు పిచికారీ చేయాలా?','Show 24-hour rain graph':'24 గంటల వర్ష గ్రాఫ్ చూపించు',
+    'Ask anything about weather... or click mic to speak':'వాతావరణం గురించి ఏదైనా అడగండి... లేదా మాట్లాడటానికి మైక్ క్లిక్ చేయండి',
     'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'వాతావరణం గురించి ఏదైనా అడగండి (ఉదా., \'రేపు వర్షం పడుతుందా?\')',
     'Ask weather question':'వాతావరణ ప్రశ్న అడగండి','Voice input':'వాయిస్ ఇన్‌పుట్','Send query':'ప్రశ్న పంపండి',
     'Back to Chat':'చాట్‌కు తిరిగి వెళ్లండి','Journey Route & Transit Mode':'ప్రయాణ మార్గం & రవాణా మోడ్',
@@ -56,9 +59,11 @@ const T = {
     'Recommended Schedule Modification':'సిఫార్సు చేసిన షెడ్యూల్ మార్పు','Schedule Timing is Optimal':'షెడ్యూల్ సమయం సరైనది',
     'Recommended Clothes & Gear':'సిఫార్సు చేసిన దుస్తులు & సామగ్రి','Water-Resistant Shoes':'నీటి నిరోధక షూస్',
     'Breathable Cap':'గాలి ప్రసరణ ఉన్న క్యాప్','UV Sunglasses':'UV సన్‌గ్లాసెస్','Compact Umbrella':'చిన్న గొడుగు',
-    'Target Location':'లక్ష్య స్థానం','Current Location:':'ప్రస్తుత స్థానం:','Enter city or district...':'నగరం లేదా జిల్లా నమోదు చేయండి...',
-    'Humidity':'తేమ','Wind':'గాలి','Rainfall':'వర్షపాతం','Rain Probability':'వర్ష అవకాశం',
+    'TARGET LOCATION':'లక్ష్య స్థానం','Target Location':'లక్ష్య స్థానం','Current Location:':'ప్రస్తుత స్థానం:','Enter city or district...':'నగరం లేదా జిల్లా నమోదు చేయండి...',
+    'Detected:':'గుర్తించబడింది:','via GPS':'GPS ద్వారా','Detected: Warangal via GPS':'GPS ద్వారా వరంగల్ గుర్తించబడింది',
+    'Humidity':'తేమ','HUMIDITY':'తేమ','Wind':'గాలి','WIND':'గాలి','Rainfall':'వర్షపాతం','RAINFALL':'వర్షపాతం','Rain Probability':'వర్ష అవకాశం',
     'Relative Humidity':'సాపేక్ష ఆర్ద్రత','Wind Velocity':'గాలి వేగం','24h Rainfall':'24 గంటల వర్షపాతం',
+    'Light drizzle':'తేలికపాటి జల్లులు','Heavy rain':'భారీ వర్షం','Moderate rain':'మోస్తరు వర్షం','Overcast':'మేఘావృతం','Clear sky':'నిర్మల ఆకాశం',
     'Unknown Station':'తెలియని స్టేషన్','Normal':'సాధారణ','Weather Warning':'వాతావరణ హెచ్చరిక',
     'Advisory issued by India Meteorological Department.':'భారత వాతావరణ శాఖ జారీ చేసిన సలహా.',
     'IMD Status: No severe weather warnings active.':'IMD స్థితి: తీవ్రమైన వాతావరణ హెచ్చరికలు ప్రస్తుతం లేవు.',
@@ -86,10 +91,14 @@ const T = {
     'Farming & Agro-Meteorology Mode':'कृषि और कृषि-मौसम विज्ञान मोड','Outdoor & Activity Mode':'आउटडोर और गतिविधि मोड',
     'Agro & Atmospheric Intelligence':'कृषि और वायुमंडलीय बुद्धिमत्ता','AI-Powered Agro-Meteorological & Atmospheric Intelligence':'AI आधारित कृषि-मौसम और वायुमंडलीय बुद्धिमत्ता',
     'Start Chatting':'चैट शुरू करें','Click anywhere or wait to enter...':'कहीं भी क्लिक करें या प्रवेश के लिए प्रतीक्षा करें...',
+    'Enter WeatherGPT ➔':'WeatherGPT में प्रवेश करें ➔',
+    'Save recovery link':'रिकवरी लिंक सहेजें', '🔗 Save recovery link':'🔗 रिकवरी लिंक सहेजें',
     'What would you like to know?':'आप क्या जानना चाहते हैं?','Switch to specialized mode:':'विशेष मोड पर जाएँ:',
     'Travelling Mode':'यात्रा मोड','Farming Mode':'कृषि मोड','Outdoor Mode':'आउटडोर मोड','Will it rain today?':'क्या आज बारिश होगी?',
     'Will it rain tomorrow?':'क्या कल बारिश होगी?','Should I spray pesticide today?':'क्या आज कीटनाशक का छिड़काव करना चाहिए?',
     'Show 24-hour rain graph':'24 घंटे का वर्षा ग्राफ दिखाएँ','Ask weather question':'मौसम संबंधी प्रश्न पूछें',
+    'Ask anything about weather... or click mic to speak':'मौसम के बारे में कुछ भी पूछें... या बोलने के लिए माइक पर क्लिक करें',
+    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'मौसम के बारे में कुछ भी पूछें (उदा., \'क्या कल बारिश होगी?\')',
     'Voice input':'वॉइस इनपुट','Send query':'प्रश्न भेजें','Back to Chat':'चैट पर वापस जाएँ','Journey Route & Transit Mode':'यात्रा मार्ग और परिवहन मोड',
     'Current Location (Origin)':'वर्तमान स्थान (प्रारंभ)','Destination Location':'गंतव्य स्थान','Popular Routes:':'लोकप्रिय मार्ग:',
     'Mode of Transport':'परिवहन का साधन','Car / SUV':'कार / SUV','Two-Wheeler':'दोपहिया','Bus':'बस','Train':'ट्रेन','Flight':'उड़ान',
@@ -112,8 +121,12 @@ const T = {
     'High Rain Likelihood':'बारिश की अधिक संभावना','Clear & Dry Weather':'साफ़ और शुष्क मौसम','Recommended Schedule Modification':'अनुशंसित शेड्यूल बदलाव',
     'Schedule Timing is Optimal':'शेड्यूल का समय सर्वोत्तम है','Recommended Clothes & Gear':'अनुशंसित कपड़े और सामान',
     'Water-Resistant Shoes':'पानी-रोधी जूते','Breathable Cap':'हवादार कैप','UV Sunglasses':'UV धूप का चश्मा','Compact Umbrella':'छोटा छाता',
-    'Target Location':'लक्षित स्थान','Current Location:':'वर्तमान स्थान:','Humidity':'आर्द्रता','Wind':'हवा','Rainfall':'वर्षा','Rain Probability':'वर्षा की संभावना',
-    'Relative Humidity':'सापेक्ष आर्द्रता','Wind Velocity':'हवा की गति','24h Rainfall':'24 घंटे की वर्षा','Unknown Station':'अज्ञात स्टेशन','Normal':'सामान्य',
+    'TARGET LOCATION':'लक्षित स्थान','Target Location':'लक्षित स्थान','Current Location:':'वर्तमान स्थान:','Enter city or district...':'शहर या ज़िला दर्ज करें...',
+    'Detected:':'पता लगाया गया:','via GPS':'GPS के माध्यम से','Detected: Warangal via GPS':'GPS के माध्यम से वारंगल का पता चला',
+    'Humidity':'आर्द्रता','HUMIDITY':'आर्द्रता','Wind':'हवा','WIND':'हवा','Rainfall':'वर्षा','RAINFALL':'वर्षा','Rain Probability':'वर्षा की संभावना',
+    'Relative Humidity':'सापेक्ष आर्द्रता','Wind Velocity':'हवा की गति','24h Rainfall':'24 घंटे की वर्षा',
+    'Light drizzle':'हल्की बूंदाबांदी','Heavy rain':'भारी बारिश','Moderate rain':'मध्यम बारिश','Overcast':'बादल छाए हुए','Clear sky':'साफ़ आसमान',
+    'Unknown Station':'अज्ञात स्टेशन','Normal':'सामान्य',
     'Weather Warning':'मौसम चेतावनी','Advisory issued by India Meteorological Department.':'भारत मौसम विज्ञान विभाग द्वारा जारी सलाह।',
     'IMD Status: No severe weather warnings active.':'IMD स्थिति: कोई गंभीर मौसम चेतावनी सक्रिय नहीं है।','Updating...':'अपडेट हो रहा है...',
     'Copy':'कॉपी','Copied':'कॉपी हो गया','Listen':'सुनें','Stop':'रोकें','WeatherGPT is evaluating radar & meteorological data...':'WeatherGPT रडार और मौसम संबंधी डेटा का विश्लेषण कर रहा है...',
@@ -130,18 +143,21 @@ const T = {
     'Avoid hanging laundry outside after 1:00 PM.':'दोपहर 1:00 बजे के बाद बाहर कपड़े न सुखाएं.',
     'Do NOT spray pesticides or fertilizers (will wash away).':'कीटनाशक या उर्वरक का छिड़काव न करें (बह जाएंगे).',
     'Avoid two-wheeler highway travel during 3:30 PM – 6:00 PM squalls.':'दोपहर 3:30 – शाम 6:00 बजे के बीच दोपहिया राजमार्ग यात्रा से बचें.',
-    '📊 Rain Probability & Temperature Curve':'📊 वर्षा संभावना और तापमान वक्र',
-    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'मौसम के बारे में कुछ भी पूछें (उदा., \'क्या कल बारिश होगी?\')'
+    '📊 Rain Probability & Temperature Curve':'📊 वर्षा संभावना और तापमान वक्र'
   },
   ta: {
     'Language:':'மொழி:','Travel':'பயணம்','Farming':'விவசாயம்','Outdoor':'வெளிப்புறம்','Chat':'அரட்டை','Travelling Mode':'பயண முறை',
     'Farming & Agro-Meteorology Mode':'விவசாயம் & வேளாண் வானிலை முறை','Outdoor & Activity Mode':'வெளிப்புற & செயல்பாட்டு முறை',
     'Agro & Atmospheric Intelligence':'வேளாண் & வளிமண்டல நுண்ணறிவு','AI-Powered Agro-Meteorological & Atmospheric Intelligence':'AI சார்ந்த வேளாண்-வானிலை & வளிமண்டல நுண்ணறிவு',
     'Start Chatting':'அரட்டையைத் தொடங்குங்கள்','Click anywhere or wait to enter...':'எங்கும் கிளிக் செய்யவும் அல்லது நுழைய காத்திருக்கவும்...',
+    'Enter WeatherGPT ➔':'WeatherGPT க்குள் நுழையவும் ➔',
+    'Save recovery link':'மீட்பு இணைப்பைச் சேமிக்கவும்', '🔗 Save recovery link':'🔗 மீட்பு இணைப்பைச் சேமிக்கவும்',
     'What would you like to know?':'நீங்கள் என்ன தெரிந்துகொள்ள விரும்புகிறீர்கள்?','Switch to specialized mode:':'சிறப்பு முறைக்கு மாறவும்:',
     'Travelling Mode':'பயண முறை','Farming Mode':'விவசாய முறை','Outdoor Mode':'வெளிப்புற முறை','Will it rain today?':'இன்று மழை பெய்யுமா?',
     'Will it rain tomorrow?':'நாளை மழை பெய்யுமா?','Should I spray pesticide today?':'இன்று பூச்சிக்கொல்லி தெளிக்கலாமா?',
     'Show 24-hour rain graph':'24 மணி நேர மழை வரைபடத்தைக் காட்டு','Ask weather question':'வானிலை கேள்வியைக் கேளுங்கள்',
+    'Ask anything about weather... or click mic to speak':'வானிலை பற்றி ஏதேனும் கேட்கவும்... அல்லது பேச மைக் அழுத்தவும்',
+    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'வானிலை பற்றி எதையும் கேளுங்கள் (எ.கா., \'நாளை மழை பெய்யுமா?\')',
     'Voice input':'குரல் உள்ளீடு','Send query':'கேள்வியை அனுப்பவும்','Back to Chat':'அரட்டைக்குத் திரும்பு','Journey Route & Transit Mode':'பயண பாதை & போக்குவரத்து முறை',
     'Current Location (Origin)':'தற்போதைய இடம் (தொடக்கம்)','Destination Location':'செல்லும் இடம்','Popular Routes:':'பிரபலமான பாதைகள்:',
     'Mode of Transport':'போக்குவரத்து முறை','Car / SUV':'கார் / SUV','Two-Wheeler':'இருசக்கர வாகனம்','Bus':'பேருந்து','Train':'ரயில்','Flight':'விமானம்',
@@ -162,8 +178,12 @@ const T = {
     'DEFINITELY CARRY AN UMBRELLA':'கண்டிப்பாக குடை எடுத்துச் செல்லுங்கள்','NO UMBRELLA NEEDED':'குடை தேவையில்லை','High Rain Likelihood':'அதிக மழை வாய்ப்பு',
     'Clear & Dry Weather':'தெளிவான & வறண்ட வானிலை','Recommended Schedule Modification':'பரிந்துரைக்கப்படும் அட்டவணை மாற்றம்','Schedule Timing is Optimal':'அட்டவணை நேரம் சிறந்தது',
     'Recommended Clothes & Gear':'பரிந்துரைக்கப்படும் உடைகள் & உபகரணங்கள்','Water-Resistant Shoes':'நீர் எதிர்ப்பு காலணிகள்','Breathable Cap':'காற்றோட்டமான தொப்பி',
-    'UV Sunglasses':'UV சன்கிளாஸ்','Compact Umbrella':'சிறிய குடை','Target Location':'இலக்கு இடம்','Current Location:':'தற்போதைய இடம்:','Humidity':'ஈரப்பதம்','Wind':'காற்று','Rainfall':'மழைப்பொழிவு',
+    'UV Sunglasses':'UV சன்கிளாஸ்','Compact Umbrella':'சிறிய குடை',
+    'TARGET LOCATION':'இலக்கு இடம்','Target Location':'இலக்கு இடம்','Current Location:':'தற்போதைய இடம்:','Enter city or district...':'நகரம் அல்லது மாவட்டத்தை உள்ளிடவும்...',
+    'Detected:':'கண்டறியப்பட்டது:','via GPS':'GPS வழியாக','Detected: Warangal via GPS':'GPS வழியாக வாரங்கல் கண்டறியப்பட்டது',
+    'Humidity':'ஈரப்பதம்','HUMIDITY':'ஈரப்பதம்','Wind':'காற்று','WIND':'காற்று','Rainfall':'மழைப்பொழிவு','RAINFALL':'மழைப்பொழிவு',
     'Rain Probability':'மழை வாய்ப்பு','Relative Humidity':'சார்பு ஈரப்பதம்','Wind Velocity':'காற்றின் வேகம்','24h Rainfall':'24 மணி நேர மழைப்பொழிவு',
+    'Light drizzle':'லேசான தூறல்','Heavy rain':'கனமழை','Moderate rain':'மிதமான மழை','Overcast':'மேகமூட்டம்','Clear sky':'தெளிவான வானம்',
     'Unknown Station':'அறியப்படாத நிலையம்','Normal':'இயல்பு','Weather Warning':'வானிலை எச்சரிக்கை','Advisory issued by India Meteorological Department.':'இந்திய வானிலை ஆய்வு மையம் வழங்கிய ஆலோசனை.',
     'IMD Status: No severe weather warnings active.':'IMD நிலை: கடுமையான வானிலை எச்சரிக்கைகள் எதுவும் செயல்பாட்டில் இல்லை.','Updating...':'புதுப்பிக்கப்படுகிறது...',
     'Copy':'நகலெடு','Copied':'நகலெடுக்கப்பட்டது','Listen':'கேள்','Stop':'நிறுத்து','WeatherGPT is evaluating radar & meteorological data...':'WeatherGPT ரேடார் & வானிலைத் தரவை பகுப்பாய்வு செய்கிறது...',
@@ -180,18 +200,21 @@ const T = {
     'Avoid hanging laundry outside after 1:00 PM.':'பிற்பகல் 1:00 மணிக்கு பிறகு வெளியில் துணி காயப் போடவேண்டாம்.',
     'Do NOT spray pesticides or fertilizers (will wash away).':'பூச்சிக்கொல்லி அல்லது உரங்களை தெளிக்கவேண்டாம் (கழுவிச் செல்லும்).',
     'Avoid two-wheeler highway travel during 3:30 PM – 6:00 PM squalls.':'பிற்பகல் 3:30 – மாலை 6:00 இடையே இருசக்கர வாகனத்தில் நெடுஞ்சாலை பயணம் தவிர்க்கவும்.',
-    '📊 Rain Probability & Temperature Curve':'📊 மழை வாய்ப்பு மற்றும் வெப்பநிலை வளைவு',
-    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'வானிலை பற்றி எதையும் கேளுங்கள் (எ.கா., \'நாளை மழை பெய்யுமா?\')'
+    '📊 Rain Probability & Temperature Curve':'📊 மழை வாய்ப்பு மற்றும் வெப்பநிலை வளைவு'
   },
   kn: {
     'Language:':'ಭಾಷೆ:','Travel':'ಪ್ರಯಾಣ','Farming':'ಕೃಷಿ','Outdoor':'ಹೊರಾಂಗಣ','Chat':'ಚಾಟ್','Travelling Mode':'ಪ್ರಯಾಣ ಮೋಡ್',
     'Farming & Agro-Meteorology Mode':'ಕೃಷಿ ಮತ್ತು ಕೃಷಿ-ಹವಾಮಾನ ಮೋಡ್','Outdoor & Activity Mode':'ಹೊರಾಂಗಣ ಮತ್ತು ಚಟುವಟಿಕೆ ಮೋಡ್',
     'Agro & Atmospheric Intelligence':'ಕೃಷಿ ಮತ್ತು ವಾತಾವರಣದ ಬುದ್ಧಿಮತ್ತೆ','AI-Powered Agro-Meteorological & Atmospheric Intelligence':'AI ಆಧಾರಿತ ಕೃಷಿ-ಹವಾಮಾನ ಮತ್ತು ವಾತಾವರಣದ ಬುದ್ಧಿಮತ್ತೆ',
     'Start Chatting':'ಚಾಟ್ ಪ್ರಾರಂಭಿಸಿ','Click anywhere or wait to enter...':'ಎಲ್ಲಿಯಾದರೂ ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ ಪ್ರವೇಶಿಸಲು ಕಾಯಿರಿ...',
+    'Enter WeatherGPT ➔':'WeatherGPT ಪ್ರವೇಶಿಸಿ ➔',
+    'Save recovery link':'ಮರುಪಡೆಯುವಿಕೆ ಲಿಂಕ್ ಉಳಿಸಿ', '🔗 Save recovery link':'🔗 ಮರುಪಡೆಯುವಿಕೆ ಲಿಂಕ್ ಉಳಿಸಿ',
     'What would you like to know?':'ನೀವು ಏನು ತಿಳಿದುಕೊಳ್ಳಲು ಬಯಸುತ್ತೀರಿ?','Switch to specialized mode:':'ವಿಶೇಷ ಮೋಡ್‌ಗೆ ಬದಲಿಸಿ:',
     'Travelling Mode':'ಪ್ರಯಾಣ ಮೋಡ್','Farming Mode':'ಕೃಷಿ ಮೋಡ್','Outdoor Mode':'ಹೊರಾಂಗಣ ಮೋಡ್','Will it rain today?':'ಇಂದು ಮಳೆಯಾಗುತ್ತದೆಯೇ?',
     'Will it rain tomorrow?':'ನಾಳೆ ಮಳೆಯಾಗುತ್ತದೆಯೇ?','Should I spray pesticide today?':'ಇಂದು ಕೀಟನಾಶಕ ಸಿಂಪಡಿಸಬೇಕೇ?',
     'Show 24-hour rain graph':'24 ಗಂಟೆಗಳ ಮಳೆ ಗ್ರಾಫ್ ತೋರಿಸಿ','Ask weather question':'ಹವಾಮಾನ ಪ್ರಶ್ನೆ ಕೇಳಿ','Voice input':'ಧ್ವನಿ ಇನ್‌ಪುಟ್','Send query':'ಪ್ರಶ್ನೆ ಕಳುಹಿಸಿ',
+    'Ask anything about weather... or click mic to speak':'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ... ಅಥವಾ ಮಾತನಾಡಲು ಮೈಕ್ ಕ್ಲಿಕ್ ಮಾಡಿ',
+    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ (ಉದಾ., \'ನಾಳೆ ಮಳೆಯಾಗುತ್ತದೆಯೇ?\')',
     'Back to Chat':'ಚಾಟ್‌ಗೆ ಹಿಂತಿರುಗಿ','Journey Route & Transit Mode':'ಪ್ರಯಾಣ ಮಾರ್ಗ ಮತ್ತು ಸಾರಿಗೆ ಮೋಡ್','Current Location (Origin)':'ಪ್ರಸ್ತುತ ಸ್ಥಳ (ಆರಂಭ)',
     'Destination Location':'ಗಮ್ಯಸ್ಥಾನ','Popular Routes:':'ಜನಪ್ರಿಯ ಮಾರ್ಗಗಳು:','Mode of Transport':'ಸಾರಿಗೆ ವಿಧಾನ','Car / SUV':'ಕಾರು / SUV','Two-Wheeler':'ದ್ವಿಚಕ್ರ ವಾಹನ',
     'Bus':'ಬಸ್','Train':'ರೈಲು','Flight':'ವಿಮಾನ','Analyze Route & Best Departure Time':'ಮಾರ್ಗ ಮತ್ತು ಉತ್ತಮ ನಿರ್ಗಮನ ಸಮಯವನ್ನು ವಿಶ್ಲೇಷಿಸಿ','Route & Mode':'ಮಾರ್ಗ ಮತ್ತು ಮೋಡ್',
@@ -210,8 +233,12 @@ const T = {
     'DEFINITELY CARRY AN UMBRELLA':'ಖಂಡಿತವಾಗಿಯೂ ಛತ್ರಿ ತೆಗೆದುಕೊಂಡು ಹೋಗಿ','NO UMBRELLA NEEDED':'ಛತ್ರಿ ಅಗತ್ಯವಿಲ್ಲ','High Rain Likelihood':'ಹೆಚ್ಚಿನ ಮಳೆಯ ಸಾಧ್ಯತೆ',
     'Clear & Dry Weather':'ಸ್ವಚ್ಛ ಮತ್ತು ಒಣ ಹವಾಮಾನ','Recommended Schedule Modification':'ಶಿಫಾರಸು ಮಾಡಿದ ವೇಳಾಪಟ್ಟಿ ಬದಲಾವಣೆ','Schedule Timing is Optimal':'ವೇಳಾಪಟ್ಟಿ ಸಮಯ ಸೂಕ್ತವಾಗಿದೆ',
     'Recommended Clothes & Gear':'ಶಿಫಾರಸು ಮಾಡಿದ ಉಡುಪು ಮತ್ತು ಸಾಮಗ್ರಿ','Water-Resistant Shoes':'ನೀರು ನಿರೋಧಕ ಶೂಗಳು','Breathable Cap':'ಗಾಳಿ ಹರಿಯುವ ಕ್ಯಾಪ್',
-    'UV Sunglasses':'UV ಸನ್‌ಗ್ಲಾಸ್','Compact Umbrella':'ಸಣ್ಣ ಛತ್ರಿ','Target Location':'ಗುರಿ ಸ್ಥಳ','Current Location:':'ಪ್ರಸ್ತುತ ಸ್ಥಳ:','Humidity':'ಆರ್ದ್ರತೆ','Wind':'ಗಾಳಿ','Rainfall':'ಮಳೆ',
+    'UV Sunglasses':'UV ಸನ್‌ಗ್ಲಾಸ್','Compact Umbrella':'ಸಣ್ಣ ಛತ್ರಿ',
+    'TARGET LOCATION':'ಗುರಿ ಸ್ಥಳ','Target Location':'ಗುರಿ ಸ್ಥಳ','Current Location:':'ಪ್ರಸ್ತುತ ಸ್ಥಳ:','Enter city or district...':'ನಗರ ಅಥವಾ ಜಿಲ್ಲೆಯನ್ನು ನಮೂದಿಸಿ...',
+    'Detected:':'ಪತ್ತೆಯಾಗಿದೆ:','via GPS':'GPS ಮೂಲಕ','Detected: Warangal via GPS':'GPS ಮೂಲಕ ವಾರಂಗಲ್ ಪತ್ತೆಯಾಗಿದೆ',
+    'Humidity':'ಆರ್ದ್ರತೆ','HUMIDITY':'ಆರ್ದ್ರತೆ','Wind':'ಗಾಳಿ','WIND':'ಗಾಳಿ','Rainfall':'ಮಳೆ','RAINFALL':'ಮಳೆ',
     'Rain Probability':'ಮಳೆಯ ಸಾಧ್ಯತೆ','Relative Humidity':'ಸಾಪೇಕ್ಷ ಆರ್ದ್ರತೆ','Wind Velocity':'ಗಾಳಿಯ ವೇಗ','24h Rainfall':'24 ಗಂಟೆಗಳ ಮಳೆ',
+    'Light drizzle':'ಹಗುರ ತುಂತುರು ಮಳೆ','Heavy rain':'ಭಾರೀ ಮಳೆ','Moderate rain':'ಮಧ್ಯಮ ಮಳೆ','Overcast':'ಮೋಡ ಕವಿದ','Clear sky':'ಸ್ವಚ್ಛ ಆಕಾಶ',
     'Unknown Station':'ಅಪರಿಚಿತ ಕೇಂದ್ರ','Normal':'ಸಾಮಾನ್ಯ','Weather Warning':'ಹವಾಮಾನ ಎಚ್ಚರಿಕೆ','Advisory issued by India Meteorological Department.':'ಭಾರತೀಯ ಹವಾಮಾನ ಇಲಾಖೆ ನೀಡಿದ ಸಲಹೆ.',
     'IMD Status: No severe weather warnings active.':'IMD ಸ್ಥಿತಿ: ತೀವ್ರ ಹವಾಮಾನ ಎಚ್ಚರಿಕೆಗಳು ಸಕ್ರಿಯವಾಗಿಲ್ಲ.','Updating...':'ನವೀಕರಿಸಲಾಗುತ್ತಿದೆ...',
     'Copy':'ನಕಲಿಸಿ','Copied':'ನಕಲಿಸಲಾಗಿದೆ','Listen':'ಆಲಿಸಿ','Stop':'ನಿಲ್ಲಿಸಿ','WeatherGPT is evaluating radar & meteorological data...':'WeatherGPT ರೇಡಾರ್ ಮತ್ತು ಹವಾಮಾನ ದತ್ತಾಂಶವನ್ನು ವಿಶ್ಲೇಷಿಸುತ್ತಿದೆ...',
@@ -228,8 +255,7 @@ const T = {
     'Avoid hanging laundry outside after 1:00 PM.':'ಮಧ್ಯಾಹ್ನ 1:00 ನಂತರ ಹೊರಗೆ ಬಟ್ಟೆ ಒಣಗಿಸಬೇಡಿ.',
     'Do NOT spray pesticides or fertilizers (will wash away).':'ಕೀಟನಾಶಕ ಅಥವಾ ರಸಗೊಬ್ಬರ ಸಿಂಪಡಿಸಬೇಡಿ (ತೊಳೆದು ಹೋಗುತ್ತದೆ).',
     'Avoid two-wheeler highway travel during 3:30 PM – 6:00 PM squalls.':'ಮಧ್ಯಾಹ್ನ 3:30 – ಸಂಜೆ 6:00 ನಡುವೆ ದ್ವಿಚಕ್ರ ವಾಹನ ಹೆದ್ದಾರಿ ಪ್ರಯಾಣ ತಪ್ಪಿಸಿ.',
-    '📊 Rain Probability & Temperature Curve':'📊 ಮಳೆ ಸಾಧ್ಯತೆ ಮತ್ತು ತಾಪಮಾನ ರೇಖೆ',
-    'Ask anything about the weather (e.g., \'Will it rain tomorrow?\')':'ಹವಾಮಾನದ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ (ಉದಾ., \'ನಾಳೆ ಮಳೆಯಾಗುತ್ತದೆಯೇ?\')'
+    '📊 Rain Probability & Temperature Curve':'📊 ಮಳೆ ಸಾಧ್ಯತೆ ಮತ್ತು ತಾಪಮಾನ ರೇಖೆ'
   }
 };
 
@@ -296,7 +322,9 @@ function translateString(value, lang) {
 
 function shouldSkip(el) {
   return !el || ['SCRIPT','STYLE','NOSCRIPT','TEXTAREA'].includes(el.tagName) ||
-    el.closest('[data-i18n-ignore="true"]');
+    el.closest('[data-i18n-ignore="true"]') ||
+    el.closest('.message-row') ||
+    el.closest('.message-bubble');
 }
 
 function translateRoot(root = document.body) {

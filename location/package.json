@@ -1,0 +1,12 @@
+{
+  "name": "location",
+  "version": "2.0.0",
+  "description": "Location layer: browser geolocation, worldwide reverse/forward geocoding, IP fallback, and name normalization with Telangana fast path.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/test-v2.js"
+  },
+  "dependencies": {},
+  "sideEffects": false
+}
