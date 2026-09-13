@@ -33,7 +33,8 @@ def main():
             question=question,
             weather_data=weather,
             language=language,
-            location=location
+            location=location,
+            conversation_context=data.get("conversation_context") or data.get("history") or []
         )
         print(json.dumps(res, ensure_ascii=False))
     except Exception as e:

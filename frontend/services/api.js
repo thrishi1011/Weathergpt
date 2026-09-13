@@ -34,12 +34,17 @@ function updateBackendStatus(available, reason = '') {
  * @param {string} params.language - Language code (e.g. "en", "te", "hi")
  * @returns {Promise<{answer: string, language: string, isDemo?: boolean}>}
  */
-export async function askQuestion({ question, location = 'Warangal', coordinates = null, language = 'en' }) {
+export async function askQuestion({ question, location = 'Warangal', coordinates = null, language = 'en', conversation_context = null, history = null }) {
   const payload = {
     question: question.trim(),
     location: (location || 'Warangal').trim(),
     language: language || 'en'
   };
+
+  const context = conversation_context || history;
+  if (Array.isArray(context) && context.length > 0) {
+    payload.conversation_context = context;
+  }
 
   if (coordinates && coordinates.latitude != null && coordinates.longitude != null) {
     payload.coordinates = {

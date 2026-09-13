@@ -24,7 +24,7 @@ const LLM_SERVICE_URL = process.env.LLM_SERVICE_URL || 'http://127.0.0.1:8001/as
  * @param {string} params.language  - Response language code (e.g., 'en', 'hi', 'te')
  * @returns {Promise<{answer: string, language: string}>}
  */
-async function generateAnswer({ question, weather, imdAlert, language = 'en' }) {
+async function generateAnswer({ question, weather, imdAlert, language = 'en', conversation_context = [] }) {
   const payload = {
     question: (question || '').trim(),
     weather_data: {
@@ -32,7 +32,8 @@ async function generateAnswer({ question, weather, imdAlert, language = 'en' }) 
       imd_alert: imdAlert || weather.imd_alert || { active: false }
     },
     location: weather.location,
-    language: language || 'en'
+    language: language || 'en',
+    conversation_context: conversation_context || []
   };
 
   // Attempt 1: Call LLM HTTP service if running

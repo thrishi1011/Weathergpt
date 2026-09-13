@@ -15,14 +15,24 @@ import { createLocationBar } from './components/LocationBar.js';
 import { createWeatherWidget } from './components/WeatherWidget.js';
 import { createChatView } from './components/ChatView.js';
 import { createInputBar } from './components/InputBar.js';
+import { createChatHistory } from './components/ChatHistory.js';
 import { createToastManager } from './components/ErrorToast.js';
 import { askQuestion, fetchWeather, checkBackendConnection, registerStatusListener } from './services/api.js';
+import {
+  initAuthSession,
+  fetchSessionMessages,
+  createChatSession,
+  saveChatMessage
+} from './services/supabase.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const appRoot = document.getElementById('app');
   if (!appRoot) return;
 
   const toasts = createToastManager();
+
+  // Initialize Supabase Anonymous Auth silently in background
+  initAuthSession().catch(err => console.debug('Supabase anonymous auth init:', err));
 
   // Application State
   const state = {
@@ -33,7 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     locationSource: 'preset',
     language: 'en',
     isProcessing: false,
-    weatherData: null
+    weatherData: null,
+    currentSessionId: null
   };
 
   // Restore saved theme
@@ -132,7 +143,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeWorkspaceEl = outdoorView.element;
       appRoot.appendChild(activeWorkspaceEl);
     } else {
-      // General / Chat Mode (Full dual cockpit)
+      // General / Chat Mode (Full dual cockpit with persistent history)
       renderChatWorkspace();
     }
   }
@@ -144,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mainLayout = document.createElement('div');
     mainLayout.className = 'main-layout';
 
-    // Left Sidebar: Location & Weather Telemetry + IMD Alert
+    // Left Sidebar: Location & Weather Telemetry + IMD Alert + Chat History
     const sidebar = document.createElement('aside');
     sidebar.className = 'sidebar-panel';
     sidebar.id = 'sidebar-panel';
@@ -168,9 +179,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const weatherWidget = createWeatherWidget();
 
-    sidebar.appendChild(locationBar.element);
-    sidebar.appendChild(weatherWidget.element);
-
     // Right Panel: Chat Cockpit
     const chatSection = document.createElement('main');
     chatSection.className = 'chat-viewport-section';
@@ -184,6 +192,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         navigateToMode(targetMode);
       }
     });
+
+    // Chat History Component
+    const chatHistory = createChatHistory({
+      onSelectSession: async (session) => {
+        state.currentSessionId = session.id;
+        try {
+          const messages = await fetchSessionMessages(session.id);
+          chatView.loadSessionMessages(messages, state.location);
+        } catch (err) {
+          console.warn('Error loading session messages:', err);
+        }
+      },
+      onNewChat: () => {
+        state.currentSessionId = null;
+        chatView.clearMessages();
+      },
+      onSessionDeleted: (deletedId) => {
+        if (state.currentSessionId === deletedId) {
+          state.currentSessionId = null;
+          chatView.clearMessages();
+        }
+      },
+      onRecoverySuccess: async () => {
+        // After restoring history, reload sessions and activate the top session if available
+        await chatHistory.loadSessions();
+      },
+      onToast: (msg, type) => {
+        if (type === 'success') toasts.showSuccess(msg, 'Chat History');
+        else toasts.showInfo(msg, 'Chat History');
+      }
+    });
+
+    sidebar.appendChild(locationBar.element);
+    sidebar.appendChild(weatherWidget.element);
+    sidebar.appendChild(chatHistory.element);
 
     const inputBar = createInputBar({
       onLanguageChange: (lang) => {
@@ -207,6 +250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeWorkspaceEl = mainLayout;
     appRoot.appendChild(activeWorkspaceEl);
 
+    // Load initial user chat sessions from Supabase
+    chatHistory.loadSessions();
+
     // Auto-detect GPS if permission already granted or prompt gently
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
@@ -229,28 +275,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.isProcessing = true;
       inputBar.setDisabled(true);
 
-      // 1. Add user message
+      // Collect recent conversation context before adding new question
+      const recentHistory = chatView.getRecentConversationHistory ? chatView.getRecentConversationHistory(6) : [];
+
+      // 1. Add user message to UI
       chatView.addUserMessage(questionText, state.location);
 
-      // 2. Show loading animation
+      // 2. Ensure active Supabase chat session exists
+      try {
+        if (!state.currentSessionId) {
+          const newSession = await createChatSession(questionText);
+          if (newSession && newSession.id) {
+            state.currentSessionId = newSession.id;
+            chatHistory.setActiveSessionId(state.currentSessionId);
+            chatHistory.loadSessions(state.currentSessionId);
+          }
+        }
+
+        // 3. Persist user message in Supabase
+        if (state.currentSessionId) {
+          await saveChatMessage({
+            sessionId: state.currentSessionId,
+            role: 'user',
+            message: questionText,
+            language: state.language
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[WeatherGPT Supabase] Session/message save error:', dbErr.message);
+      }
+
+      // 4. Show loading animation
       chatView.showLoadingState();
 
       try {
-        // 3. POST /api/ask following api-contract.md
+        // 5. POST /api/ask with location and conversational context
         const result = await askQuestion({
           question: questionText,
           location: state.location,
           coordinates: state.coordinates,
-          language: state.language
+          language: state.language,
+          conversation_context: recentHistory
         });
 
-        // 4. Hide loading & present localized answer with real telemetry
+        // 6. Hide loading & present localized answer with real telemetry
         chatView.hideLoadingState();
         chatView.addAssistantMessage(result.answer, result.language, result.isDemo, {
           question: questionText,
           location: state.location,
           weatherData: state.weatherData
         });
+
+        // 7. Persist assistant response in Supabase
+        if (state.currentSessionId && !result.isDemo) {
+          try {
+            await saveChatMessage({
+              sessionId: state.currentSessionId,
+              role: 'assistant',
+              message: result.answer,
+              language: result.language || state.language
+            });
+            // Refresh history order in sidebar
+            chatHistory.loadSessions(state.currentSessionId);
+          } catch (dbErr) {
+            console.warn('[WeatherGPT Supabase] Assistant message save error:', dbErr.message);
+          }
+        }
 
         // Sync detected language from Gemini to UI state & input bar
         if (result.language && result.language !== state.language) {

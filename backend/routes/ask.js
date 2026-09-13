@@ -14,7 +14,7 @@ const { generateAnswer } = require('../services/llmService');
  */
 router.post('/', async (req, res) => {
   try {
-    const { question, location: locationName, coordinates, language } = req.body;
+    const { question, location: locationName, coordinates, language, conversation_context, history } = req.body;
 
     // Validate required fields
     if (!question || typeof question !== 'string' || question.trim() === '') {
@@ -55,12 +55,13 @@ router.post('/', async (req, res) => {
     // For now, use the imd_alert already in the weather schema (inactive).
     const imdAlert = weather.imd_alert;
 
-    // Generate answer via LLM service (currently stubbed)
+    // Generate answer via LLM service
     const result = await generateAnswer({
       question: question.trim(),
       weather,
       imdAlert,
-      language: language || 'en'
+      language: language || 'en',
+      conversation_context: conversation_context || history || []
     });
 
     return res.json(result);

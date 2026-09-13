@@ -123,7 +123,8 @@ class LLMRequestHandler(BaseHTTPRequestHandler):
                     question=question,
                     weather_data=weather_data,
                     language=language,
-                    location=location
+                    location=location,
+                    conversation_context=payload.get("conversation_context") or payload.get("history") or []
                 )
 
                 self._send_json(200, result)

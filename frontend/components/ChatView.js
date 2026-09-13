@@ -251,12 +251,53 @@ export function createChatView({ onSuggestionClick, onSwitchMode }) {
     typingRow = null;
   }
 
+  function clearMessages() {
+    hasMessages = false;
+    container.innerHTML = '';
+    renderEmptyState();
+  }
+
+  function loadSessionMessages(messages = [], location = '') {
+    hasMessages = false;
+    container.innerHTML = '';
+    if (!messages || messages.length === 0) {
+      renderEmptyState();
+      return;
+    }
+
+    messages.forEach(msg => {
+      if (msg.role === 'user') {
+        addUserMessage(msg.message, location);
+      } else if (msg.role === 'assistant') {
+        addAssistantMessage(msg.message, msg.language || 'en', false);
+      }
+    });
+  }
+
+  function getRecentConversationHistory(maxTurns = 6) {
+    const bubbles = container.querySelectorAll('.message-row');
+    const history = [];
+    bubbles.forEach(row => {
+      if (row.classList.contains('user-row')) {
+        const text = row.querySelector('.user-bubble')?.innerText?.trim();
+        if (text) history.push({ role: 'user', content: text });
+      } else if (row.classList.contains('assistant-row')) {
+        const text = row.querySelector('.assistant-answer-text')?.innerText?.trim();
+        if (text) history.push({ role: 'assistant', content: text });
+      }
+    });
+    return history.slice(-maxTurns);
+  }
+
   return {
     element: container,
     addUserMessage,
     addAssistantMessage,
     showLoadingState,
-    hideLoadingState
+    hideLoadingState,
+    clearMessages,
+    loadSessionMessages,
+    getRecentConversationHistory
   };
 }
 
