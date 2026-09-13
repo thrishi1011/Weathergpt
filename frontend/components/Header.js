@@ -3,7 +3,7 @@
  * WeatherGPT Branding, Interactive Mode Switcher, Backend Connectivity status, and Theme Toggle
  */
 
-export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClick, onSwitchMode, onOpenModesHub }) {
+export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClick, onSwitchMode, onOpenModesHub, onSaveRecoveryLink }) {
   const header = document.createElement('header');
   header.className = 'app-header';
   header.id = 'app-header';
@@ -44,6 +44,10 @@ export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClic
     </nav>
 
     <div class="header-status-group">
+      <button type="button" class="recovery-link-header-btn" id="header-recovery-link-btn" title="Save recovery link to restore chats if browser data is cleared">
+        🔗 Save recovery link
+      </button>
+
       <button class="connection-pill" id="backend-status-pill" title="Backend connectivity status">
         <span class="status-dot"></span>
         <span id="backend-status-text">Checking Backend...</span>
@@ -99,6 +103,11 @@ export function createHeader({ currentMode = 'chat', onThemeToggle, onStatusClic
   const statusPill = header.querySelector('#backend-status-pill');
   if (onStatusClick) {
     statusPill.addEventListener('click', onStatusClick);
+  }
+
+  const recoveryLinkBtn = header.querySelector('#header-recovery-link-btn');
+  if (recoveryLinkBtn && onSaveRecoveryLink) {
+    recoveryLinkBtn.addEventListener('click', onSaveRecoveryLink);
   }
 
   return {

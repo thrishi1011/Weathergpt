@@ -2,7 +2,7 @@
  * WeatherGPT Application Entry Point
  * Orchestrates Splash Screen, Mode Selection Hub,
  * Specialized Workspaces (Travelling, Farming, Outdoor),
- * and the General Conversational Cockpit.
+ * and the General Conversational Cockpit with Silent Persistent History.
  */
 
 import { createSplashScreen } from './components/SplashScreen.js';
@@ -15,14 +15,16 @@ import { createLocationBar } from './components/LocationBar.js';
 import { createWeatherWidget } from './components/WeatherWidget.js';
 import { createChatView } from './components/ChatView.js';
 import { createInputBar } from './components/InputBar.js';
-import { createChatHistory } from './components/ChatHistory.js';
 import { createToastManager } from './components/ErrorToast.js';
 import { askQuestion, fetchWeather, checkBackendConnection, registerStatusListener } from './services/api.js';
 import {
   initAuthSession,
+  fetchLatestSession,
   fetchSessionMessages,
   createChatSession,
-  saveChatMessage
+  saveChatMessage,
+  getOrCreateRecoveryLink,
+  restoreChatWithToken
 } from './services/supabase.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -77,12 +79,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     onOpenModesHub: () => {
       navigateToModesHub();
+    },
+    onSaveRecoveryLink: async () => {
+      try {
+        const link = await getOrCreateRecoveryLink();
+        if (link) {
+          await navigator.clipboard.writeText(link);
+          toasts.showSuccess(
+            'Recovery link copied to clipboard! Save this link somewhere safe to restore your conversations if browser data is cleared.',
+            'Recovery Link'
+          );
+        } else {
+          toasts.showError('Unable to generate recovery link at this time.', 'Recovery Link');
+        }
+      } catch (err) {
+        console.warn('Recovery link generation error:', err);
+        toasts.showWarning('Could not copy link to clipboard automatically.', 'Recovery Link');
+      }
     }
   });
 
   registerStatusListener((status) => {
     headerComponent.setStatus(status);
   });
+
+  // Check for Recovery Link in URL (?recover=...)
+  const urlParams = new URLSearchParams(window.location.search);
+  const recoveryToken = urlParams.get('recover');
+  if (recoveryToken) {
+    // Process recovery token
+    (async () => {
+      try {
+        const res = await restoreChatWithToken(recoveryToken);
+        // Clean URL to prevent repeated trigger
+        window.history.replaceState({}, document.title, window.location.pathname);
+        if (res.success) {
+          toasts.showSuccess(
+            'Your previous WeatherGPT conversations have been securely restored!',
+            'History Restored'
+          );
+        } else {
+          toasts.showError(res.message || 'Invalid recovery link.', 'Recovery Error');
+        }
+      } catch (e) {
+        console.warn('Recovery URL processing failed:', e);
+      }
+    })();
+  }
 
   // 2. Setup Splash Screen
   const splash = createSplashScreen({
@@ -143,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeWorkspaceEl = outdoorView.element;
       appRoot.appendChild(activeWorkspaceEl);
     } else {
-      // General / Chat Mode (Full dual cockpit with persistent history)
+      // General / Chat Mode (Clean dual cockpit with automatic session continuation)
       renderChatWorkspace();
     }
   }
@@ -155,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mainLayout = document.createElement('div');
     mainLayout.className = 'main-layout';
 
-    // Left Sidebar: Location & Weather Telemetry + IMD Alert + Chat History
+    // Left Sidebar: Location & Weather Telemetry + IMD Alert
     const sidebar = document.createElement('aside');
     sidebar.className = 'sidebar-panel';
     sidebar.id = 'sidebar-panel';
@@ -179,6 +222,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const weatherWidget = createWeatherWidget();
 
+    sidebar.appendChild(locationBar.element);
+    sidebar.appendChild(weatherWidget.element);
+
     // Right Panel: Chat Cockpit
     const chatSection = document.createElement('main');
     chatSection.className = 'chat-viewport-section';
@@ -192,41 +238,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         navigateToMode(targetMode);
       }
     });
-
-    // Chat History Component
-    const chatHistory = createChatHistory({
-      onSelectSession: async (session) => {
-        state.currentSessionId = session.id;
-        try {
-          const messages = await fetchSessionMessages(session.id);
-          chatView.loadSessionMessages(messages, state.location);
-        } catch (err) {
-          console.warn('Error loading session messages:', err);
-        }
-      },
-      onNewChat: () => {
-        state.currentSessionId = null;
-        chatView.clearMessages();
-      },
-      onSessionDeleted: (deletedId) => {
-        if (state.currentSessionId === deletedId) {
-          state.currentSessionId = null;
-          chatView.clearMessages();
-        }
-      },
-      onRecoverySuccess: async () => {
-        // After restoring history, reload sessions and activate the top session if available
-        await chatHistory.loadSessions();
-      },
-      onToast: (msg, type) => {
-        if (type === 'success') toasts.showSuccess(msg, 'Chat History');
-        else toasts.showInfo(msg, 'Chat History');
-      }
-    });
-
-    sidebar.appendChild(locationBar.element);
-    sidebar.appendChild(weatherWidget.element);
-    sidebar.appendChild(chatHistory.element);
 
     const inputBar = createInputBar({
       onLanguageChange: (lang) => {
@@ -250,8 +261,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeWorkspaceEl = mainLayout;
     appRoot.appendChild(activeWorkspaceEl);
 
-    // Load initial user chat sessions from Supabase
-    chatHistory.loadSessions();
+    // Automatically find and restore the last active conversation
+    resumeLastActiveChatSession();
 
     // Auto-detect GPS if permission already granted or prompt gently
     if (navigator.permissions && navigator.permissions.query) {
@@ -267,6 +278,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       weatherWidget.update(state.weatherData);
     } else {
       reloadWeatherData();
+    }
+
+    /**
+     * Automatically restore the user's latest conversation on startup
+     */
+    async function resumeLastActiveChatSession() {
+      try {
+        const latestSession = await fetchLatestSession();
+        if (latestSession && latestSession.id) {
+          state.currentSessionId = latestSession.id;
+          const messages = await fetchSessionMessages(latestSession.id);
+          if (messages && messages.length > 0) {
+            chatView.loadSessionMessages(messages, state.location);
+          }
+        } else {
+          state.currentSessionId = null;
+        }
+      } catch (err) {
+        console.warn('[WeatherGPT Supabase] Session continuation failed:', err);
+      }
     }
 
     async function handleUserQuery(questionText) {
@@ -287,8 +318,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           const newSession = await createChatSession(questionText);
           if (newSession && newSession.id) {
             state.currentSessionId = newSession.id;
-            chatHistory.setActiveSessionId(state.currentSessionId);
-            chatHistory.loadSessions(state.currentSessionId);
           }
         }
 
@@ -335,8 +364,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               message: result.answer,
               language: result.language || state.language
             });
-            // Refresh history order in sidebar
-            chatHistory.loadSessions(state.currentSessionId);
           } catch (dbErr) {
             console.warn('[WeatherGPT Supabase] Assistant message save error:', dbErr.message);
           }

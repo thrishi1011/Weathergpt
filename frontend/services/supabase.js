@@ -2,9 +2,9 @@
  * Supabase Anonymous Auth & Chat History Service for WeatherGPT
  * Provides:
  * - Silent persistent anonymous authentication
- * - Session restoration on reload / browser reopen
+ * - Automatic continuation of the last active chat session on reload/reopen
  * - RLS-compliant chat session & message CRUD
- * - Secure hashed recovery code generation & ownership transfer
+ * - Secure hashed recovery link generation & cross-session ownership transfer
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -80,6 +80,33 @@ export async function getActiveUser() {
     currentUser = await initAuthSession();
   }
   return currentUser;
+}
+
+/**
+ * Fetch the latest active chat session for the current anonymous user
+ * (Ordered deterministically by updated_at DESC, limit 1)
+ */
+export async function fetchLatestSession() {
+  const user = await getActiveUser();
+  if (!user) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.warn('[WeatherGPT Supabase] Error fetching latest session:', error.message);
+      return null;
+    }
+    return data && data.length > 0 ? data[0] : null;
+  } catch (e) {
+    console.warn('[WeatherGPT Supabase] fetchLatestSession failed:', e);
+    return null;
+  }
 }
 
 /**
@@ -250,7 +277,7 @@ export async function deleteChatSession(sessionId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RECOVERY CODE SYSTEM (Cryptographic, Hashed, Zero raw user_id exposure)
+// SECURE RECOVERY LINK SYSTEM (Cryptographic, SHA-256 Hashed, No user_id in URL)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -265,69 +292,59 @@ export async function sha256Hex(text) {
 }
 
 /**
- * Generate a cryptographically random recovery code in format: WG-XXXX-XXXX
+ * Generate a cryptographically random 256-bit token hex string
  */
-function generateRandomCodeString() {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Exclude 0, 1, I, O for readability
-  const randomBytes = new Uint8Array(8);
+function generateRandomToken() {
+  const randomBytes = new Uint8Array(32);
   crypto.getRandomValues(randomBytes);
-  let part1 = '';
-  let part2 = '';
-  for (let i = 0; i < 4; i++) {
-    part1 += chars[randomBytes[i] % chars.length];
-    part2 += chars[randomBytes[i + 4] % chars.length];
-  }
-  return `WG-${part1}-${part2}`;
+  return Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
- * Get or create a secure recovery code for the current anonymous session.
- * Stores only SHA-256 hash in Supabase, keeping the raw code client-side.
+ * Get or create a secure recovery link for the current anonymous session.
+ * Stores only SHA-256 hash in Supabase, keeping the raw token in client link.
  */
-export async function getOrCreateRecoveryCode() {
+export async function getOrCreateRecoveryLink() {
   const user = await getActiveUser();
   if (!user) return null;
 
-  const localKey = `weathergpt_recovery_code_${user.id}`;
-  const cachedCode = localStorage.getItem(localKey) || localStorage.getItem('weathergpt_last_recovery_code');
+  const localKey = `weathergpt_recovery_token_${user.id}`;
+  let rawToken = localStorage.getItem(localKey);
 
-  if (cachedCode) {
-    return cachedCode;
-  }
+  if (!rawToken) {
+    rawToken = generateRandomToken();
+    const tokenHash = await sha256Hex(rawToken);
 
-  // Generate new code
-  const rawCode = generateRandomCodeString();
-  const normalized = rawCode.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-  const hash = await sha256Hex(normalized);
+    try {
+      // Store hash in recovery_codes table
+      const { error } = await supabase
+        .from('recovery_codes')
+        .insert({
+          user_id: user.id,
+          code_hash: tokenHash
+        });
 
-  try {
-    // Store hash in recovery_codes table
-    const { error } = await supabase
-      .from('recovery_codes')
-      .insert({
-        user_id: user.id,
-        code_hash: hash
-      });
-
-    if (!error || error.code === '23505') { // Unique constraint violation is fine
-      localStorage.setItem(localKey, rawCode);
-      localStorage.setItem('weathergpt_last_recovery_code', rawCode);
-      return rawCode;
+      if (!error || error.code === '23505') {
+        localStorage.setItem(localKey, rawToken);
+      }
+    } catch (e) {
+      console.warn('[WeatherGPT Supabase] Error saving recovery token hash:', e);
     }
-  } catch (e) {
-    console.warn('[WeatherGPT Supabase] Error saving recovery code:', e);
   }
 
-  return rawCode;
+  // Construct standard recovery link URL
+  const origin = window.location.origin;
+  const pathname = window.location.pathname;
+  return `${origin}${pathname}?recover=${rawToken}`;
 }
 
 /**
- * Restore chat history using a saved recovery code.
- * Calls Postgres SECURITY DEFINER function to re-assign session ownership to current user.
+ * Restore chat history using a recovery token from the recovery link.
+ * Calls Postgres SECURITY DEFINER function to securely re-assign session ownership to current user.
  */
-export async function restoreChatWithRecoveryCode(inputCode) {
-  if (!inputCode || !inputCode.trim()) {
-    return { success: false, message: 'Please enter a valid recovery code' };
+export async function restoreChatWithToken(rawToken) {
+  if (!rawToken || !rawToken.trim()) {
+    return { success: false, message: 'Invalid recovery link token' };
   }
 
   const user = await getActiveUser();
@@ -335,13 +352,12 @@ export async function restoreChatWithRecoveryCode(inputCode) {
     return { success: false, message: 'Unable to authenticate session' };
   }
 
-  // Normalize code: remove dashes/spaces and uppercase
-  const normalized = inputCode.trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
-  const hash = await sha256Hex(normalized);
+  const cleanToken = rawToken.trim();
+  const tokenHash = await sha256Hex(cleanToken);
 
   try {
     const { data, error } = await supabase.rpc('restore_chat_history_with_recovery_code', {
-      p_code_hash: hash
+      p_code_hash: tokenHash
     });
 
     if (error) {
@@ -349,9 +365,8 @@ export async function restoreChatWithRecoveryCode(inputCode) {
     }
 
     if (data && data.success) {
-      // Store recovered code locally
-      localStorage.setItem(`weathergpt_recovery_code_${user.id}`, inputCode.trim().toUpperCase());
-      localStorage.setItem('weathergpt_last_recovery_code', inputCode.trim().toUpperCase());
+      // Store recovered token locally
+      localStorage.setItem(`weathergpt_recovery_token_${user.id}`, cleanToken);
       return {
         success: true,
         message: data.message || 'Chat history successfully restored!',
@@ -362,7 +377,7 @@ export async function restoreChatWithRecoveryCode(inputCode) {
 
     return {
       success: false,
-      message: data?.message || 'Invalid or expired recovery code'
+      message: data?.message || 'Invalid or expired recovery link'
     };
   } catch (err) {
     return {
