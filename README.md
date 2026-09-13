@@ -173,6 +173,10 @@ Navigate to:
 
 ---
 
+## Deployment links
+1. **Live Netlify Production URL**: https://weathergpt-sih.netlify.app/
+2. **Live Render Backend URL**: https://weathergpt-backend-ec7n.onrender.com
+
 ## 💡 How It Works
 
 1. **Animated Loading Screen**: At startup, you are greeted with the animated Weather clouds emblem before smoothly entering the Chat Cockpit.
