@@ -1,0 +1,29 @@
+# Render Blueprint Specification for WeatherGPT Backend
+
+services:
+  - type: web
+    name: weathergpt-backend
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm --prefix backend install
+    startCommand: node backend/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: LLM_PORT
+        value: 8001
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: SUPABASE_URL
+        value: https://xcpcuqzaoocbqieqnrec.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
